@@ -1,0 +1,26 @@
+= {iced} Application Framework
+Rizzen Yazston
+:iced-url: https://crates.io/crates/iced
+:iced_aw-url: https://crates.io/crates/iced_aw
+:i18n-url: https://crates.io/crates/i18n-rizzen-yazston
+:icu-url: https://crates.io/crates/icu
+:icu4x-url: https://icu4x.unicode.org/
+:iced: pass:q[*Iced*]
+
+Welcome to the iced Application Framework project.
+
+The goal is to provide a starting application framework for developing native multi-window {iced} applications.
+
+This project uses the {iced-url}[{iced}] library crates (including {iced_aw-url}[*iced_aw*] community crate for additional widgets) for the GUI of the application.
+
+In addition, the framework supports internationalisation by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
+
+== Usage
+
+As this project is a starting point for developing {iced} applications, it can be compiled into a functional example, and be launched by using the application name `example`.
+
+== Notes
+
+* The major version number will always match the major version number of {iced} being used.
+
+* Once the `menu` feature of *iced_aw* crate is ready, the framework will be updated.

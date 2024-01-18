@@ -1,0 +1,19 @@
+= Supported Languages
+Rizzen Yazston
+:fmt: https://doc.rust-lang.org/std/fmt/trait.Display.html#tymethod.fmt
+:Display: https://doc.rust-lang.org/std/fmt/trait.Display.html
+
+The `Default Language Tag` appearing before the table below is the language that will be used for any unsupported language tag (if fallback is allowed). The embedded error message strings of the `{fmt}[fmt]` method implementing the `{Display}[Display]` are the same as the strings in the SQLite3 database file for the default language tag.
+
+The table below contains the support languages for this crate. The first column lists the language tags that have entries in the SQLite3 database file. The second column gives credit to the translator of the contribution. The third column indicates similar language tags that can also use strings of the language tag for the listed unsupported language tags, where there is no or very minor variations between the languages, and the reader should be able to correctly understand the text of the string.
+
+There should be no need to have duplicate strings in the database for very similar language tags, due to the process of retrieving strings from the database (see the `i18n_provider_sqlite3-rizzen-yazston` crate for details). Only strings containing text that differs from the original entries should be included in the database as the original entries will be used in place of the missing entries for the language tag.
+
+Example
+====
+Suppose there exists two strings the database for `en-ZA` (being the original entries): "_The knight rides a black horse._" and "_The knight wears silver armour._" For the first string, the spelling of each word is the same for both `en-ZA` and `en-US` (American English), thus only one entry exists in the database for `en-ZA`, as this string will be retrieved also for `en-US`. For the second string, however there is a tiny difference between `en-ZA` and `en-US` where the word "_armour_" of the original string is spelt as "_armor_" in American English, thus there will be two entries in the database, the original for `en-ZA` and "_The knight wears silver armor._" for `en-US`. For British English `en-GB`, there would be no additional entries for these two entries, as these strings are identical for both `en-ZA` and `en-GB`, and the original strings for `en-ZA` would be retrieved for `en-GB`.
+====
+
+Within the `.sqlite3` file for the default language tag located in the `metadata` table with key `default_language_tag`.
+
+The supported languages contributors are located in the `contributor` table. A wildcard `*` is used to indicate one or more subtags follows the matching tag(s), and that these language tags are similar enough to the Language Tag so that the entry can be used for all these language tags.

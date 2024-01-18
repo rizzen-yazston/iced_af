@@ -1,0 +1,10 @@
+= Changelog
+Rizzen Yazston
+
+== iced_af 0.0.0 (2024-01-18)
+
+* The `iced_af` project's Git repository initialised with basic directory structure:
+
+* README.asciidoc: Basic project description.
+
+* Using `all_in_one.sqlite` for localisation. It will contain a few Italian entries (translation via Google Translation), purely for demonstration purposes

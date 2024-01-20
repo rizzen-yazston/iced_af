@@ -5,7 +5,7 @@ Rizzen Yazston
 :i18n-url: https://crates.io/crates/i18n-rizzen-yazston
 :icu-url: https://crates.io/crates/icu
 :icu4x-url: https://icu4x.unicode.org/
-:iced: pass:q[*Iced*]
+:iced: pass:q[*iced*]
 
 Welcome to the iced Application Framework project.
 
@@ -15,12 +15,56 @@ This project uses the {iced-url}[{iced}] library crates (including {iced_aw-url}
 
 In addition, the framework supports internationalisation by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
 
+== Features
+
+The following features are available:
+
+* log: To enable logging for the application, and inserts a log level setting in Preferences,
+
+* sync: To use `sync::Arc` instead of `rc::Rc`.
+
+== What is included
+
+The application framework has the following capabilities:
+
+* First time launch of application, prompt for user interface language (currently using language tags while waiting for display name feature to be completed in ICU4X),
+
+* The following windows:
+
+** `ConfirmExit`: for demonstration purposes application is set to displayed when exiting (faking unsaved data),
+
+** `Preferences`: contains the user interface language setting, and optional log level setting,
+
+** `FatalError`: for displaying fatal error messages to users (helpful when not launched from console),
+
+** `Information`: a simply generic window to display a message to user,
+
+** `Main`: simply contains a menu bar,
+
+** planned to add an About window.
+
+* Parent windows are generally disabled while popup window is displayed,
+
+* Traps the window decoration close button, to handle certain state cases,
+
+* Windows are resizable and movable, their final position and size is saved on application termination and restored when application is relaunched.
+
+* Supports handling of error `Result`s internally of the `update()` method and the 'Application::new()' method.
+
 == Usage
 
 As this project is a starting point for developing {iced} applications, it can be compiled into a functional example, and be launched by using the application name `example`.
+
+Before launching the `example` copy the `l10n` directory to where the directory where the binary resides to avoid a panic indicating missing localisation database.
 
 == Notes
 
 * The major version number will always match the major version number of {iced} being used.
 
 * Once the `menu` feature of *iced_aw* crate is ready, the framework will be updated.
+
+* Formatting of error message for localisation is still to be implemented.
+
+* This still work in progress, thus the windows may look a bit wonky. Currently focused on functionality than appearances.
+
+* Currently works with `master` branch of {iced} using commit `61e3d85`.

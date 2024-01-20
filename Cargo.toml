@@ -1,10 +1,9 @@
 # This file is part of `iced_af` project. For the terms of use, please see the file
 # called `LICENSE-BSD-3-Clause` at the top level of the `iced_af` project's Git repository.
 
-
 [package]
-name = "iced_af"
-version = "0.0.0"
+name = "iced_af-rizzen-yazston"
+version = "0.1.0"
 authors = ["Rizzen Yazston"]
 edition = "2021"
 rust-version = "1.70.0"
@@ -16,21 +15,27 @@ keywords = []
 categories = [ "rust-pattern" ]
 
 [features]
-log = [ "i18n-rizzen-yazston/log" ]
+log = [ "i18n-rizzen-yazston/log", ]
+sync = [ "i18n-rizzen-yazston/sync", ]
 
 [dependencies]
-#i18n-rizzen-yazston = { path = "../../../i18n/crates/i18n", features = [ "compiled_data", ] }
+#i18n-rizzen-yazston = { path = "../i18n/crates/i18n", features = [ "compiled_data", ] }
 i18n-rizzen-yazston = { version = "0.7.0", features = [ "compiled_data", ] }
 icu_locid_transform = "1.4.0"
 #iced_aw = { version = "0.8.0", features = [ "menu", "quad", ] }
-iced_aw = { path = "../../../contributor/iced_aw", features = [  ] } #"menu", "quad", 
+iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "updates" } #, features = [ "menu", "quad" ]
+#iced_aw = { path = "../contributor/iced_aw" } #, features = [ "menu", "quad" ]
 #iced = { version = "0.12.0", features = [ "multi-window", "advanced", ] }
-iced = { path = "../../../contributor/iced", features = [ "multi-window", "advanced" ] }
+#iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
+iced = { git = "https://github.com/iced-rs/iced.git", rev = "61e3d85", features = [ "multi-window", "advanced" ] }
+#iced = { path = "../contributor/iced", features = [ "multi-window", "advanced" ] }
 log = { version = "0.4.20" }
 log4rs = "1.2.0"
 clap = { version = "4.4.3", features = [ "derive" ] }
 ron = "0.8"
 serde = { version = "1", features = [ "derive" ] }
+dirs = "5.0.1"
+rusqlite = "0.29.0"
 
 [[bin]]
 name = "example"

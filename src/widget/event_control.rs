@@ -345,29 +345,6 @@ pub fn layout(
             )
         },
     )
-
-
-    /*
-    let limits = limits
-        .loose()
-        .max_width( max_width )
-        .max_height( max_height )
-        .width( width )
-        .height( height );
-
-    let mut content = layout_content( &limits.pad(padding).loose() );
-    let padding = padding.fit( content.size(), limits.max() );
-    let size = limits.pad( padding ).resolve( content.size() );
-
-    content.move_to( Point::new( padding.left, padding.top ) );
-    content.align(
-        Alignment::from( horizontal_alignment ),
-        Alignment::from( vertical_alignment ),
-        size,
-    );
-
-    layout::Node::with_children(size.pad(padding), vec![content])
-    */
 }
 
 /// Draws the background of a [`Container`] given its [`Appearance`] and its `bounds`.
@@ -378,13 +355,15 @@ pub fn draw_background<Renderer>(
 ) where
     Renderer: iced::advanced::Renderer,
 {
-    if appearance.background.is_some() || appearance.border_width > 0.0 {
+    if appearance.background.is_some()
+        || appearance.border.width > 0.0
+        || appearance.shadow.color.a > 0.0
+    {
         renderer.fill_quad(
             renderer::Quad {
                 bounds,
-                border_radius: appearance.border_radius,
-                border_width: appearance.border_width,
-                border_color: appearance.border_color,
+                border: appearance.border,
+                shadow: appearance.shadow,
             },
             appearance
                 .background

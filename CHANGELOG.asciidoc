@@ -1,6 +1,20 @@
 = Changelog
 Rizzen Yazston
 
+== iced_af 0.1.1 (2024-01-22)
+
+* Currently compiles to `iced` commit `545cc90` (latest commit on `master` branch).
+
+* Commented out the dependency `iced_aw` for now, as `menu` is still outstanding.
+
+* Updated `Container`:
+
+** To support new `Border` and `Shadow` types of `iced`,
+
+** Due to the removal of padding methods from `Limit` type.
+
+* Added some information regarding the design.
+
 == iced_af 0.1.0 (2024-01-19)
 
 * Copy the core from another project being developed and cleaned up the source code

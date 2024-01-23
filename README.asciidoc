@@ -41,7 +41,7 @@ The application framework has the following capabilities:
 
 ** `Main`: simply contains a menu bar,
 
-** planned to add an About window.
+** `About`: simply demonstration about window.
 
 * Parent windows are generally disabled while popup window is displayed,
 
@@ -67,7 +67,39 @@ Before launching the `example` copy the `l10n` directory to where the directory 
 
 * This still work in progress, thus the windows may look a bit wonky. Currently focused on functionality than appearances.
 
-* Currently works with `master` branch of {iced} using commit `61e3d85`.
+* Currently works with `master` branch of {iced} using commit `545cc90`.
+
+== Adding a new windows
+
+* In `src/window` directory copy `about.rs` with a new filename. Using `about.rs` due to simple window for `About`.
+
+* Make the required changes in the new window `.rs` file:
+
+** Such as renaming `AboutLocalisation` struct, `About` struct, and `display_about` function. Adjust the content of these as required.
+
+** If required add a `?Message` enum, and `update_?` function, where ? is internal window abbreviation name. See existing `preferences.rs` for an example.
+
+** Alter the contents of `try_new()`, `try_update()` and `view()`, and optionally adjust `parent_remove()`.
+
+* In `window.rs` add the new filename.
+
+* In `core/session.rs` add entry for the window in `Ui` struct, and in the `default()` function.
+
+* In `core/application`:
+
+** To `use crate::{` statement add the new window filename.
+
+** To `WindowType` add a new entry for the new window.
+
+** If new window has its own `Message` enum, add it to `ApplicationMessage` enum, to be able to pass messages to the new window's `try_update()` method.
+
+** To `try_update()` method, add match branch for new window, either directly to window's `try_update()` method, or if needing to do more logic outside of window's `try_update()` method, can in the new window's rust file add a `update_?` function, where ? is the window abbreviation. See other branches for examples.
+
+** To `try_new()` add an entry to `session.settings.ui` field for the new window.
+
+** To `resized()` and `moved()` methods add entries for the new window.
+
+* If new window is accessible from the application's menu bar then add entry in `window/main/menu_bar.rs` and add match branch to `update_main()` function to handle the displaying of the new window.
 
 == Design process
 

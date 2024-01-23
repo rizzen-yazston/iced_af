@@ -42,8 +42,9 @@ use std::rc::Rc as RefCount;
 #[derive( Debug, Clone )]
 pub enum MainMenuBarMessage {
     None, // Used for the menu bar button, and buttons that open sub menus to the side.
-    Preferences,
     Exit,
+    Preferences,
+    About,
 }
 
 pub struct MainMenuBarLocalisation {
@@ -147,7 +148,7 @@ impl MainMenuBar {
         ].spacing( 0 ).align_items( Alignment::Start ),
         row![
             labeled_button( self.localisation.help.as_str(), MainMenuBarMessage::None ),
-            labeled_button( self.localisation.about.as_str(), MainMenuBarMessage::None ),
+            labeled_button( self.localisation.about.as_str(), MainMenuBarMessage::About ),
             text( "" ).width( Length::Fill ),
         ].spacing( 0 ).align_items( Alignment::Start ),
         ].align_items( Alignment::Start );

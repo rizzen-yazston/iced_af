@@ -88,7 +88,7 @@ pub struct Ui {
     pub confirm_exit: Generic,
     pub fatal_error: Generic,
     pub information: Generic,
-    pub connect: Generic,
+    pub about: Generic,
 }
 
 impl Default for Ui {
@@ -100,7 +100,7 @@ impl Default for Ui {
             confirm_exit: Generic::default(),
             fatal_error: Generic::default(),
             information: Generic::default(),
-            connect: Generic::default(),
+            about: Generic::default(),
         }
     }
 }

@@ -3,7 +3,7 @@
 
 [package]
 name = "iced_af-rizzen-yazston"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Rizzen Yazston"]
 edition = "2021"
 rust-version = "1.70.0"

@@ -16,9 +16,10 @@ use crate::{
     },
     widget::event_control,
     window::{
-        fatal_error::display_fatal_error,
         confirm_exit::display_confirm_exit,
+        fatal_error::display_fatal_error,
         preferences::display_preferences,
+        about::display_about,
     },
 };
 use i18n::{
@@ -233,7 +234,6 @@ pub fn update_main(
                         ) );
                     };
                     let actual = window.as_any().downcast_ref::<Main>().unwrap();
-
                     if actual.is_unsaved()/*application.unsaved*/ {
                         command = display_confirm_exit(
                             application,
@@ -244,6 +244,7 @@ pub fn update_main(
                         command = application.save_and_exit()
                     }
                 },
+                MainMenuBarMessage::About => command = display_about( application )?,
             },
         },
         _ => {}

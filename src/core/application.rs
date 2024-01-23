@@ -17,6 +17,7 @@ use crate::{
         preferences::{ self, update_preferences, PreferencesMessage, Preferences, },
         information,
         main::{ self, update_main, Main, MainMessage },
+        about,
     },
 };
 use iced::{
@@ -46,6 +47,7 @@ pub enum WindowType {
     FatalError,
     Information,
     Preferences,
+    About,
 }
 
 #[derive( Debug, Clone )]
@@ -99,6 +101,7 @@ impl ApplicationThread {
             session.settings.ui.confirm_exit = Generic { size: confirm_exit::SIZE_DEFAULT, position: None };
             session.settings.ui.fatal_error = Generic { size: fatal_error::SIZE_DEFAULT, position: None };
             session.settings.ui.information = Generic { size: information::SIZE_DEFAULT, position: None };
+            session.settings.ui.about = Generic { size: about::SIZE_DEFAULT, position: None };
             window_ids.insert( window_iced::Id::MAIN, WindowType::Preferences );
             println!( "Creating Preferences window." );
             windows.insert(
@@ -315,6 +318,9 @@ impl ApplicationThread {
             WindowType::Main => self.session.settings.ui.main.size = (
                 width as f32, height as f32
             ),
+            WindowType::About => self.session.settings.ui.about.size = (
+                width as f32, height as f32
+            ),
         }
         Ok( Command::none() )
     }
@@ -340,6 +346,8 @@ impl ApplicationThread {
             WindowType::Information => self.session.settings.ui.information.position =
             Some( ( x as f32, y as f32 ) ),
             WindowType::Main => self.session.settings.ui.main.position =
+            Some( ( x as f32, y as f32 ) ),
+            WindowType::About => self.session.settings.ui.about.position =
             Some( ( x as f32, y as f32 ) ),
         }
         Ok( Command::none() )

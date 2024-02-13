@@ -7,27 +7,39 @@ Rizzen Yazston
 :icu4x-url: https://icu4x.unicode.org/
 :iced: pass:q[*iced*]
 
-Welcome to the iced Application Framework project.
+Welcome to the *{iced} Application Framework* project.
 
 The goal is to provide a starting application framework for developing native multi-window {iced} applications.
 
 This project uses the {iced-url}[{iced}] library crates (including {iced_aw-url}[*iced_aw*] community crate for additional widgets) for the GUI of the application.
 
-In addition, the framework supports internationalisation by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
+NOTE:: Currently the `menu` feature of the `iced_aw` crate's `update` branch does not work with the `master` branch of `iced`. For the interim a simple fake menu bar is implemented in `menu_bar.rs`. Excuse the blocks of comments and individual comments scattered, leaving the commented code as a reminded to fix once `iced_aw` is stable and `menu` feature is fixed.
+
+In addition, the framework supports internationalisation as a feature option by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
+
+To support various applications, all the application's feature capabilities are gated with build feature options (see Features section).
 
 == Features
 
 The following features are available:
 
-* log: To enable logging for the application, and inserts a log level setting in Preferences,
+* `log`: To enable logging for the application, and inserts a log level setting in Preferences window,
 
-* sync: To use `sync::Arc` instead of `rc::Rc`.
+* `sync`: To use `sync::Arc` instead of `rc::Rc`, their respective variants.
+
+* `i18n`: To enable international support. The design allows for all scripts, though currently only supports top to down scripts, due to `icu` currently only has flow direction information for top to bottom scripts (with plans to expand to all scripts). Uses the latest `i18n` version 0.8.0, that added new features.
+
+* `persistent`: Specifies whether session data will be saved on exit, and restored at application launch. This feature is required if wanting applications settings to be persistent across usage.
+
+* `first_use`: To enable the simplified Preferences window to appear first on first time use to allow user to set specific preferences settings, before opening the application's main window. This feature automatically enables the `persistent` feature.
+
+* `clap`: Enabled command line support, for applications that like to have the ability to pass options/command/etc to the application. Note version used is 4.4.3, as 4.5 requires rustc version 0.74.
 
 == What is included
 
 The application framework has the following capabilities:
 
-* First time launch of application, prompt for user interface language (currently using language tags while waiting for display name feature to be completed in ICU4X),
+* First time use of application, the Preferences window will be displayed prompting the user to select the user interface language (currently using language tags while waiting for *display name* feature to be completed in ICU4X),
 
 * The following windows:
 
@@ -37,25 +49,33 @@ The application framework has the following capabilities:
 
 ** `FatalError`: for displaying fatal error messages to users (helpful when not launched from console),
 
-** `Information`: a simply generic window to display a message to user,
+** `Information`: a simple generic window to display a message to user,
 
 ** `Main`: simply contains a menu bar,
 
-** `About`: simply demonstration about window.
+** `About`: simply demonstration of an about window.
 
 * Parent windows are generally disabled while popup window is displayed,
 
 * Traps the window decoration close button, to handle certain state cases,
 
-* Windows are resizable and movable, their final position and size is saved on application termination and restored when application is relaunched.
+* Windows are resizable and movable, and if build with `persistent` feature their final position and size is saved on application termination and restored when application is relaunched.
 
-* Supports handling of error `Result`s internally of the `update()` method and the 'Application::new()' method.
+* Supports handling of error `Result`s internally of the `update()` method and the 'Application::new()' method, using FatalError window to display uncaught errors.
+
+* Localisation of text and errors that supports internationalisation. Two demonstration languages included for almost all text. Deliberately the text displayed in Main window does not support localisation for demonstration purposes.
 
 == Usage
 
-As this project is a starting point for developing {iced} applications, it can be compiled into a functional example, and be launched by using the application name `example`.
+NOTE:: There are no build scripts included, and data files need to be copied to target destination.
+
+As this project is a starting point for developing multi-windowed {iced} applications, it can be compiled into a functional example, and be launched by using the application name `example`.
 
 Before launching the `example` copy the `l10n` directory to where the directory where the binary resides to avoid a panic indicating missing localisation database.
+
+Edit the `lib.rs` in the project's root, to configure various application's `const`s to reflect the new project.
+
+As this is a mini application framework for creating multi-window applications, feel free to remove unwanted features, easy to spot with `#[cfg(...)]` statements and deleted the associated statement/expression. Or alternative leave the features as is and continue using the feature `#[cfg(...)]` statements for new windows and new components of existing windows, to allow easy switching to more advance features later on (such as international support, or suddenly requiring command line options).
 
 == Notes
 
@@ -71,31 +91,29 @@ Before launching the `example` copy the `l10n` directory to where the directory 
 
 == Adding a new windows
 
-* In `src/window` directory copy `about.rs` with a new filename. Using `about.rs` due to simple window for `About`.
+* In `src/window` directory pick a window that closely fits your new window layout structure, copy rust file with a new filename.
 
 * Make the required changes in the new window `.rs` file:
 
-** Such as renaming `AboutLocalisation` struct, `About` struct, and `display_about` function. Adjust the content of these as required.
+** Such as renaming `???Localisation` struct, `???` struct, and `display_???` function, where *???* is the window abbreviation name. Adjust the content of these as required.
 
-** If required add a `?Message` enum, and `update_?` function, where ? is internal window abbreviation name. See existing `preferences.rs` for an example.
+** If required add a `???Message` enum, and `update_???` function, where *???* is internal window abbreviation name. See existing `preferences.rs` for an example.
 
 ** Alter the contents of `try_new()`, `try_update()` and `view()`, and optionally adjust `parent_remove()`.
 
 * In `window.rs` add the new filename.
 
-* In `core/session.rs` add entry for the window in `Ui` struct, and in the `default()` function.
+* In `core/session.rs` add entry for the window in `Ui` struct.
 
 * In `core/application`:
 
-** To `use crate::{` statement add the new window filename.
+** To `use crate::{ ... window::{` statement add the new window filename.
 
 ** To `WindowType` add a new entry for the new window.
 
 ** If new window has its own `Message` enum, add it to `ApplicationMessage` enum, to be able to pass messages to the new window's `try_update()` method.
 
 ** To `try_update()` method, add match branch for new window, either directly to window's `try_update()` method, or if needing to do more logic outside of window's `try_update()` method, can in the new window's rust file add a `update_?` function, where ? is the window abbreviation. See other branches for examples.
-
-** To `try_new()` add an entry to `session.settings.ui` field for the new window.
 
 ** To `resized()` and `moved()` methods add entries for the new window.
 

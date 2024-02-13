@@ -8,10 +8,7 @@ use super::{
         ApplicationMessage,
     },
     error::ApplicationError,
-    localisation::Localisation,
-    environment::Environment,
 };
-use i18n::utility::TaggedString;
 use iced::{
     window,
     multi_window::Application,
@@ -20,6 +17,22 @@ use iced::{
     Renderer,
 };
 use std::any::Any;
+
+#[cfg( feature = "i18n" )]
+use super::{
+    localisation::Localisation,
+    environment::Environment,
+};
+
+#[cfg( feature = "log" )]
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
+
+#[cfg( feature = "i18n" )]
+use i18n::utility::TaggedString as LString;
+
+#[cfg( not( feature = "i18n" ) )]
+use std::string::String as LString;
 
 /// Supertrait for Any
 pub trait AnyWindowTrait: Any + WindowTrait {}
@@ -30,7 +43,7 @@ pub trait WindowTrait {
 
     fn as_any_mut( &mut self ) -> &mut dyn Any;
 
-    fn title( &self ) -> &TaggedString;
+    fn title( &self ) -> &LString;
 
     #[allow(unused_variables)]
     fn try_update( &mut self, message: ApplicationMessage ) -> Result<Command<ApplicationMessage>, ApplicationError> {
@@ -56,7 +69,8 @@ pub trait WindowTrait {
     }
 
     // Some windows don't update their localisation.
-    #[allow(unused_variables)]
+    #[cfg( feature = "i18n" )]
+    #[allow( unused_variables )]
     fn try_update_localisation(
         &mut self,
         localisation: &Localisation,

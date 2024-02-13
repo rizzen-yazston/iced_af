@@ -9,6 +9,10 @@ use clap::builder::TypedValueParser as _;
 #[cfg( feature = "log" )]
 use crate::core::log::LogLevelConverter;
 
+#[cfg( feature = "log" )]
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
+
 #[derive( Parser, Debug, Clone )]
 #[command( author, version, about, long_about = None )]
 pub struct Clap {

@@ -2,40 +2,55 @@
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
 use super::application::WindowType;
+use iced::window;
+use std::{
+    error::Error, fmt::Debug, io::Error as IoError, path::PathBuf
+};
+use core::fmt::{ Display, Formatter, Result };
+
+#[cfg( feature = "i18n" )]
 use i18n::{
     localiser::LocaliserError,
     provider::ProviderError,
     provider_sqlite3::ProviderSqlite3Error,
     icu::IcuError,
-    utility::{ RegistryError, LocalisationTrait, LocalisationErrorTrait },
+    utility::{ 
+        PlaceholderValue,
+        RegistryError,
+        LocalisationTrait,
+        LocalisationErrorTrait,
+        LocalisationData,
+    },
 };
-use rusqlite::Error as Sqlite3Error;
+
+#[cfg( feature = "persistent" )]
 use ron::error::{ SpannedError, Error as RonError };
-use iced::window;
-use std::{
-    io::Error as IoError,
-    error::Error, // Experimental in `core` crate.
-    path::PathBuf,
-    sync::Arc,
-};
-use core::fmt::{ Display, Formatter, Result };
+
+#[cfg( feature = "persistent" )]
+use std::collections::HashMap;
+
+#[cfg( not( feature = "sync" ) )]
+use std::rc::Rc as RefCount;
+
+#[cfg( feature = "sync" )]
+#[cfg( target_has_atomic = "ptr" )]
+use std::sync::Arc as RefCount;
 
 #[derive( Debug, Clone )]
 #[non_exhaustive]
 pub enum ApplicationError {
+    #[cfg( feature = "persistent" )] RonSpannedError( SpannedError ),
+    #[cfg( feature = "persistent" )] RonError( RonError ),
+    #[cfg( feature = "i18n" )] LanguageTagRegistry( RegistryError ),
+    #[cfg( feature = "i18n" )] Localiser( LocaliserError ),
+    #[cfg( feature = "i18n" )] Provider( ProviderError ),
+    #[cfg( feature = "i18n" )] ProviderSqlite3( ProviderSqlite3Error ),
+    #[cfg( feature = "i18n" )] Icu( IcuError ),
+    Io( String ), // Can't clone io::Error, as it is an OS error, thus converted to final String (can't be translated).
+    ApplicationPath,
     ConfigDirNotFound,
     NoVendorDir( PathBuf ),
     NoConfigFile( PathBuf ),
-    Io( String ), // Can't clone io::Error, as it is an OS error, thus converted to final String (can't be translated).
-    RonSpannedError( SpannedError ),
-    RonError( RonError ),
-    ApplicationPath,
-    Localiser( Arc<LocaliserError> ),
-    Provider( Arc<ProviderError> ),
-    ProviderSqlite3( Arc<ProviderSqlite3Error> ),
-    Icu( Arc<IcuError> ),
-    Sqlite3( Arc<Sqlite3Error> ),
-    LanguageTagRegistry( RegistryError ),
     DatabaseAlreadyOpen,
     WindowIdNotFound( window::Id ),
     WindowTypeNotFound( WindowType ),
@@ -43,54 +58,271 @@ pub enum ApplicationError {
     InvalidSchema( String ),
 }
 
+#[cfg( feature = "i18n" )]
+impl LocalisationErrorTrait for ApplicationError {}
+
+#[cfg( feature = "i18n" )]
 impl LocalisationTrait for ApplicationError {
-    fn identifier( &self ) -> &str {
-        match *self {
-            ApplicationError::ConfigDirNotFound => "config_directory_not_found",
-            ApplicationError::NoVendorDir( _ ) => "no_vendor_directory",
-            ApplicationError::NoConfigFile( _ ) => "no_config_file",
-            ApplicationError::ApplicationPath => "application_data",
-            ApplicationError::DatabaseAlreadyOpen => "database_already_opened",
-            ApplicationError::WindowIdNotFound( _ ) => "window_id_not_found",
-            ApplicationError::WindowTypeNotFound( _ ) => "window_type_not_found",
-            ApplicationError::ExpectedWindowParent( _ ) => "expected_window_parent",
-            ApplicationError::InvalidSchema( _ ) => "schema_invalid",
+    fn localisation_data( &self ) -> LocalisationData {
+        let type_string = PlaceholderValue::String( "ApplicationError".to_string() );
+        match self {
+            #[cfg( feature = "persistent" )]
+            ApplicationError::RonSpannedError( ref error ) => {
+                // Currently no localisation is available for this error type: SpannedError.
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "RonSpannedError".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::String( error.to_string() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
 
-            #[allow( unreachable_patterns )]
-            _ => "",
-        }
-    }
+            #[cfg( feature = "persistent" )]
+            ApplicationError::RonError( ref error ) => {
+                // Currently no localisation is available for this error type: RonError.
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "RonError".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::String( error.to_string() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
 
-    fn component( &self ) -> &str {
-        "application"
-    }
-}
-
-impl LocalisationErrorTrait for ApplicationError {
-    fn error_type( &self ) -> &str {
-        "ApplicationError"
-    }
-
-    fn error_variant( &self ) -> &str {
-        match &self {
-            ApplicationError::ConfigDirNotFound => "ConfigDirNotFound",
-            ApplicationError::NoVendorDir( _ ) => "NoVendorDir",
-            ApplicationError::NoConfigFile( _ ) => "NoConfigFile",
-            ApplicationError::Io( _ ) => "Io",
-            ApplicationError::RonSpannedError( _ ) => "RonSpannedError",
-            ApplicationError::RonError( _ ) => "RonError",
-            ApplicationError::ApplicationPath => "ApplicationPath",
-            ApplicationError::Localiser( _ ) => "Localiser",
-            ApplicationError::Provider( _ ) => "Provider",
-            ApplicationError::ProviderSqlite3( _ ) => "ProviderSqlite3",
-            ApplicationError::Icu( _ ) => "Icu",
-            ApplicationError::Sqlite3( _ ) => "Sqlite3",
-            ApplicationError::LanguageTagRegistry( _ ) => "LanguageTagRegistry",
-            ApplicationError::DatabaseAlreadyOpen => "DatabaseAlreadyOpen",
-            ApplicationError::WindowIdNotFound( _ ) => "WindowIdNotFound",
-            ApplicationError::WindowTypeNotFound( _ ) => "WindowTypeNotFound",
-            ApplicationError::ExpectedWindowParent( _ ) => "ExpectedWindowParent",
-            ApplicationError::InvalidSchema( _ ) => "InvalidSchema",
+            ApplicationError::Localiser( ref error ) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "Localiser".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::LocalisationData( error.localisation_data() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::Provider( ref error ) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "Provider".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::LocalisationData( error.localisation_data() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::ProviderSqlite3( ref error ) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "ProviderSqlite3".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::LocalisationData( error.localisation_data() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::Icu( ref error ) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "Icu".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::LocalisationData( error.localisation_data() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::LanguageTagRegistry( ref error ) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "LanguageTagRegistry".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::LocalisationData( error.localisation_data() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::Io( ref error ) => {
+                // Currently no localisation is available for this error type: IoError (always a String).
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "Io".to_string() ) ); 
+                values.insert( "error".to_string(), PlaceholderValue::String( error.to_string() ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::ApplicationPath => {
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "application_data".to_string(),
+                    values: None,
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "ApplicationPath".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::ConfigDirNotFound => {
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "config_directory_not_found".to_string(),
+                    values: None,
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "ConfigDirNotFound".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::NoVendorDir( ref path ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert( "path".to_string(), PlaceholderValue::String( path.display().to_string() ) );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "no_vendor_directory".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "NoVendorDir".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::NoConfigFile( ref path ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert( "path".to_string(), PlaceholderValue::String( path.display().to_string() ) );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "no_config_file".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "NoConfigFile".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::DatabaseAlreadyOpen => {
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "database_already_opened".to_string(),
+                    values: None,
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "DatabaseAlreadyOpen".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::WindowIdNotFound( ref id ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert( "window_type".to_string(), PlaceholderValue::String( format!( "{:?}", id ) ) );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "window_id_not_found".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "WindowIdNotFound".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::WindowTypeNotFound( ref window_type ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert(
+                    "window_type".to_string(),
+                    PlaceholderValue::String( window_type.as_str().to_string() )
+                );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "window_type_not_found".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "WindowTypeNotFound".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::ExpectedWindowParent( ref window_type ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert(
+                    "window_type".to_string(),
+                    PlaceholderValue::String( window_type.as_str().to_string() )
+                );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "expected_window_parent".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "ExpectedWindowParent".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            },
+            ApplicationError::InvalidSchema( ref name ) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert( "name".to_string(), PlaceholderValue::String( name.to_string() ) );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "schema_invalid".to_string(),
+                    values: Some( message_values ),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert( "type".to_string(), type_string ); 
+                values.insert( "variant".to_string(), PlaceholderValue::String( "InvalidSchema".to_string() ) ); 
+                values.insert( "message".to_string(), PlaceholderValue::LocalisationData( message ) ); 
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some( values ),
+                }
+            }
         }
     }
 }
@@ -98,9 +330,36 @@ impl LocalisationErrorTrait for ApplicationError {
 impl Display for ApplicationError {
     fn fmt( &self, formatter: &mut Formatter ) -> Result {
         match self {
+            #[cfg( feature = "persistent" )]
+            ApplicationError::RonSpannedError( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "persistent" )]
+            ApplicationError::RonError( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "i18n" )]
+            ApplicationError::LanguageTagRegistry( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "i18n" )]
+            ApplicationError::Localiser( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "i18n" )]
+            ApplicationError::Provider( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "i18n" )]
+            ApplicationError::ProviderSqlite3( ref error ) => Display::fmt( &error, formatter ),
+
+            #[cfg( feature = "i18n" )]
+            ApplicationError::Icu( ref error ) => Display::fmt( &error, formatter ),
+
+            ApplicationError::Io( ref error ) => Display::fmt( &error, formatter ),
+            ApplicationError::ApplicationPath => write!(
+                formatter,
+                "Failed to retrieve the application path."
+            ),
             ApplicationError::ConfigDirNotFound => write!(
-                formatter, "Failed to retrieve the user's configuration path."
-        ),
+                formatter,
+                "Failed to retrieve the user's configuration path."
+            ),
             ApplicationError::NoVendorDir( ref path ) => write!(
                 formatter,
                 "The vendor directory ‘{}’ does not exist.",
@@ -111,20 +370,9 @@ impl Display for ApplicationError {
                 "The file ‘{}’ does not exist.",
                 path.display()
             ),
-            ApplicationError::Io( ref error ) => error.fmt( formatter ),
-            ApplicationError::RonSpannedError( ref error ) => error.fmt( formatter ),
-            ApplicationError::RonError( ref error ) => error.fmt( formatter ),
-            ApplicationError::ApplicationPath => write!(
-                formatter, "Failed to retrieve the application path."
-            ),
-            ApplicationError::Localiser( ref error ) => error.fmt( formatter ),
-            ApplicationError::Provider( ref error ) => error.fmt( formatter ),
-            ApplicationError::ProviderSqlite3( ref error ) => error.fmt( formatter ),
-            ApplicationError::Icu( ref error ) => error.fmt( formatter ),
-            ApplicationError::Sqlite3( ref error ) => error.fmt( formatter ),
-            ApplicationError::LanguageTagRegistry( ref error ) => error.fmt( formatter ),
             ApplicationError::DatabaseAlreadyOpen => write!(
-                formatter, "The database is already opened."
+                formatter,
+                "The database is already opened."
             ),
             ApplicationError::WindowIdNotFound( ref id ) => write!(
                 formatter,
@@ -159,48 +407,49 @@ impl From<IoError> for ApplicationError {
     }
 }
 
+#[cfg( feature = "persistent" )]
 impl From<SpannedError> for ApplicationError {
     fn from( error: SpannedError ) -> ApplicationError {
         ApplicationError::RonSpannedError( error )
     }
 }
 
+#[cfg( feature = "persistent" )]
 impl From<RonError> for ApplicationError {
     fn from( error: RonError ) -> ApplicationError {
         ApplicationError::RonError( error )
     }
 }
 
+#[cfg( feature = "i18n" )]
 impl From<LocaliserError> for ApplicationError {
     fn from( error: LocaliserError ) -> ApplicationError {
-        ApplicationError::Localiser( Arc::new( error ) )
+        ApplicationError::Localiser( error )
     }
 }
 
+#[cfg( feature = "i18n" )]
 impl From<ProviderError> for ApplicationError {
     fn from( error: ProviderError ) -> ApplicationError {
-        ApplicationError::Provider( Arc::new( error ) )
+        ApplicationError::Provider( error )
     }
 }
 
+#[cfg( feature = "i18n" )]
 impl From<ProviderSqlite3Error> for ApplicationError {
     fn from( error: ProviderSqlite3Error ) -> ApplicationError {
-        ApplicationError::ProviderSqlite3( Arc::new( error ) )
+        ApplicationError::ProviderSqlite3( error )
     }
 }
 
-impl From<Sqlite3Error> for ApplicationError {
-    fn from( error: Sqlite3Error ) -> ApplicationError {
-        ApplicationError::Sqlite3( Arc::new( error ) )
-    }
-}
-
+#[cfg( feature = "i18n" )]
 impl From<IcuError> for ApplicationError {
     fn from( error: IcuError ) -> ApplicationError {
-        ApplicationError::Icu( Arc::new( error ) )
+        ApplicationError::Icu( error )
     }
 }
 
+#[cfg( feature = "i18n" )]
 impl From<RegistryError> for ApplicationError {
     fn from( error: RegistryError ) -> ApplicationError {
         ApplicationError::LanguageTagRegistry( error )

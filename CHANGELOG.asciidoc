@@ -1,6 +1,16 @@
 = Changelog
 Rizzen Yazston
 
+== iced_af 0.2.0 (2024-02-13)
+
+* added feature options for various configurations that applications may use.
+
+* Added script layout flow direction support for the windows.
+
+* Added application configuration `const`s to `lib.rs`, and updated windows to use them.
+
+* Added additional usage note for application configuration `const`s.
+
 == iced_af 0.1.2 (2024-01-23)
 
 * Added the `About` window.

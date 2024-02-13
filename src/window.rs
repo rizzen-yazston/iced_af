@@ -5,5 +5,7 @@ pub mod confirm_exit;
 pub mod fatal_error;
 pub mod information;
 pub mod main;
-pub mod preferences;
 pub mod about;
+
+//#[cfg( any( feature = "i18n", feature = "log" ) )]
+pub mod preferences;

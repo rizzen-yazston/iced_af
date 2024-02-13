@@ -1,36 +1,58 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use crate::
+use crate::{
     core::{
         application::{
-            WindowType,
-            ApplicationMessage,
-            ApplicationThread,
+            ApplicationMessage, ApplicationThread, WindowType
         },
         error::ApplicationError,
-        localisation::Localisation,
-        environment::Environment,
-        traits::{ AnyWindowTrait, WindowTrait },
-    }
-;
-use i18n::{
-    pattern::PlaceholderValue, provider::LocalisationProvider, utility::TaggedString
+        traits::{ AnyWindowTrait, WindowTrait }
+    },
+    APPLICATION_NAME,
+    APPLICATION_NAME_SHORT,
+    AUTHORS,
+    VERSION,
 };
 use iced::{
-    widget::{ button, column, container, scrollable, row, text, Column, },
-    window, Alignment, Command, Element, Length, Point, Size
+    widget::{ button, column, container, row, scrollable, text },
+    window,
+    Alignment,
+    Command,
+    Element,
+    Length,
+    Point,
+    Size
 };
-use log::error;
-use std::{
-    collections::HashMap,
-    any::Any,
+use std::any::Any;
+
+#[cfg( feature = "i18n" )]
+use crate::core::{
+    localisation::{
+        Localisation,
+        ScriptData,
+        //Direction, //used for layout flow direction test
+    },
+    environment::Environment,
 };
 
-#[cfg( feature = "sync" )]
+#[cfg( feature = "i18n" )]
+use i18n::utility::{ TaggedString as LString, PlaceholderValue, };
+
+#[cfg( not( feature = "i18n" ) )]
+use std::string::String as LString;
+
+#[cfg( feature = "log" )]
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
+
+#[cfg( feature = "i18n" )]
+use std::collections::HashMap;
+
+#[cfg( all( feature = "i18n", feature = "sync" ) )]
 use std::sync::Arc as RefCount;
 
-#[cfg( not( feature = "sync" ) )]
+#[cfg( all( feature = "i18n", not( feature = "sync" ) ) )]
 use std::rc::Rc as RefCount;
 
 // Constants
@@ -40,70 +62,115 @@ const RESIZABLE: bool = false;
 //const MAXIMISE: bool = false;
 
 pub struct AboutLocalisation {
-    language: RefCount<String>,
+    #[cfg( feature = "i18n" )] language: RefCount<String>,
+    #[cfg( feature = "i18n" )] script_data: ScriptData,
 
     // Strings
-    title: TaggedString,
-    contributors: TaggedString,
-    language_contributors: TaggedString,
-    ok: TaggedString,
+    title: LString,
+    contributors: LString,
+    ok: LString,
+    #[cfg( feature = "i18n" )] localisation_contributors: LString,
 }
 
 impl AboutLocalisation {
     pub fn try_new(
-        localisation: &Localisation,
-        environment: &Environment,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<Self, ApplicationError> {
+        #[cfg( feature = "i18n" )]
         let language = localisation.localiser().default_language();
-        let name = localisation.localiser().literal_with_defaults(
-                "word", "about_i",
+
+        #[cfg( feature = "i18n" )]
+        let locale = localisation.localiser().language_tag_registry().locale(
+            language.as_str()
         )?;
-        let mut values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "application".to_string(),
-            PlaceholderValue::String( environment.application_short_name.clone() ),
-        );
-        values.insert(
-            "window".to_string(), 
-            PlaceholderValue::TaggedString( name )
-        );
-        let title = localisation.localiser().format_with_defaults(
-            "application",
-            "window_title_format",
-            &values
-        )?;
-        values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "phrase".to_string(),
-            PlaceholderValue::TaggedString( localisation.localiser().literal_with_defaults(
-                "word", "contributors_ip"
-            )? ),
-        );
-        let contributors = localisation.localiser().format_with_defaults(
-            "application",
-            "add_colon_format",
-            &values
-        )?;
-        let mut values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "phrase".to_string(),
-            PlaceholderValue::TaggedString( localisation.localiser().literal_with_defaults(
-                "application", "language_contributors"
-            )? ),
-        );
-        let language_contributors = localisation.localiser().format_with_defaults(
-            "application",
-            "add_colon_format",
-            &values
-        )?;
+
+        #[cfg( feature = "i18n" )]
+        let title = {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "application".to_string(),
+                PlaceholderValue::String( APPLICATION_NAME_SHORT.to_string() ),
+            );
+            values.insert(
+                "window".to_string(), 
+                PlaceholderValue::TaggedString(
+                    localisation.localiser().literal_with_defaults(
+                        "word", "about_i",
+                    )?
+                )
+            );
+            localisation.localiser().format_with_defaults(
+                "application", "window_title_format", &values
+            )?
+        };
+
+        #[cfg( not( feature = "i18n" ) )]
+        let title = format!( "{} - About", APPLICATION_NAME_SHORT );
+
+        #[cfg( feature = "i18n" )]
+        let contributors = {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "phrase".to_string(),
+                PlaceholderValue::TaggedString(
+                    localisation.localiser().literal_with_defaults(
+                        "word", "contributors_ip"
+                    )?
+                ),
+            );
+            localisation.localiser().format_with_defaults(
+                "application", "add_colon_format", &values
+            )?
+        };
+
+        #[cfg( not( feature = "i18n" ) )]
+        let contributors = "Contributors:".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let localisation_contributors = {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "phrase".to_string(),
+                PlaceholderValue::TaggedString(
+                    localisation.localiser().literal_with_defaults(
+                        "application", "localisation_contributors"
+                    )?
+                ),
+            );
+            localisation.localiser().format_with_defaults(
+                "application", "add_colon_format", &values
+            )?
+        };
+
+        #[cfg( feature = "i18n" )]
+        let ok = {
+            localisation.localiser().literal_with_defaults(
+                "word", "ok_i"
+            )?
+        };
+
+        #[cfg( not( feature = "i18n" ) )]
+        let ok = "OK".to_string();
+
         Ok( AboutLocalisation {
-            language,
+            #[cfg( feature = "i18n" )] language,
+            /* just here to test other script direction flow of objects. text is only partially supported in iced.
+            #[cfg( feature = "i18n" )] script_data: ScriptData { //faking directions to test layout
+                flow_line: Direction::BottomToTop,
+                flow_word: Direction::RightToLeft,
+                reverse_lines: true,
+                reverse_words: true,
+                align_lines_start: Alignment::End,
+                align_lines_end: Alignment::Start,
+                align_words_start: Alignment::End,
+                align_words_end: Alignment::Start,
+            },
+            */
+            #[cfg( feature = "i18n" )] script_data: ScriptData::new( localisation, &locale ),
             title,
             contributors,
-            language_contributors,
-            ok: localisation.localiser().literal_with_defaults(
-                "word", "ok_i"
-            )?,
+            ok,
+            #[cfg( feature = "i18n" )] localisation_contributors,
         } )
     }
 }
@@ -112,33 +179,41 @@ pub struct About {
     enabled: bool,
     parent: Option<WindowType>,
     localisation: AboutLocalisation,
-    application_short_name: String,
-    version: String,
     contributors: Vec<String>,
-    language_contributors: Vec<String>,
+    #[cfg( feature = "i18n" )] localisation_contributors: Vec<String>,
 }
 
 impl About {
     pub fn try_new(
-        localisation: &Localisation,
-        environment: &Environment,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<Self, ApplicationError> {
-        let details = localisation.localiser().localisation_provider().repository_details()?;
-        let language_contributors = details.contributors.clone();
-        let localisation = AboutLocalisation::try_new( localisation, environment )?;
-        let mut split = env!( "CARGO_PKG_AUTHORS" ).split( ',' );
+        let about_localisation = AboutLocalisation::try_new(
+            #[cfg( feature = "i18n" )] localisation,
+        )?;
+        let mut split = AUTHORS.split( ',' );
         let mut contributors = Vec::<String>::new();
         while let Some( author ) = split.next() {
             contributors.push( author.trim().to_string() );
         }
+        #[cfg( feature = "i18n" )]
+        {
+            let details = localisation.localiser().localisation_provider().repository_details()?;
+            let localisation_contributors = details.contributors.clone();
+            Ok( About {
+                enabled: true,
+                parent: Some( WindowType::Main ),
+                localisation: about_localisation,
+                contributors,
+                localisation_contributors,
+            } )
+        }
+
+        #[cfg( not( feature = "i18n" ) )]
         Ok( About {
             enabled: true,
             parent: Some( WindowType::Main ),
-            localisation,
-            application_short_name: environment.application_short_name.clone(),
-            version: env!( "CARGO_PKG_VERSION" ).to_string(),
+            localisation: about_localisation,
             contributors,
-            language_contributors,
         } )
     }
 }
@@ -154,47 +229,106 @@ impl WindowTrait for About {
         self
     }
 
-    fn title( &self ) -> &TaggedString {
+    fn title( &self ) -> &LString {
         &self.localisation.title
     }
 
     fn view( &self, id: &window::Id ) -> Element<ApplicationMessage> {
-        let mut contributors = Column::new();
+        #[cfg( feature = "i18n" )]
+        let align_start = self.localisation.script_data.align_words_start;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let align_start = Alignment::Start;
+
+        let mut content: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
+
+        // Header
+        let mut header: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
+        header.push( APPLICATION_NAME.into() );
+        header.push( VERSION.into() );
+
+        #[cfg( feature = "i18n" )]
+        if self.localisation.script_data.reverse_lines {
+            header.reverse();
+        }
+
+        content.push( column( header ).width( Length::Fill ).align_items( Alignment::Center ).into() );
+
+        // Body - scrollable
+        let mut body: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
+
+        let mut contributors: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
         let mut iterator = self.contributors.iter();
         while let Some( author ) = iterator.next() {
-            contributors = contributors.push( row![
-                text( "  " ),
-                text( author.clone() ).width( Length::Fill ),
-            ] );
+            #[allow( unused_mut )]
+            let mut contributor: Vec<Element<ApplicationMessage>> = vec![
+                text( "  " ).into(),
+                text( author.clone() ).into(),
+            ];
+
+            #[cfg( feature = "i18n" )]
+            if self.localisation.script_data.reverse_words {
+                contributor.reverse();
+            }
+
+            contributors.push( row( contributor ).into() );
         }
-        let mut languages = Column::new();
-        let mut iterator = self.language_contributors.iter();
-        while let Some( contributor ) = iterator.next() {
-            languages = languages.push( row![
-                text( "  " ),
-                text( contributor.clone() ).width( Length::Fill ),
-            ] );
+
+        #[cfg( feature = "i18n" )]
+        if self.localisation.script_data.reverse_lines {
+            contributors.reverse();
         }
-        let body = column![
-            text( self.localisation.contributors.as_str() ),
-            contributors,
-            text( " " ),
-            text( self.localisation.language_contributors.as_str() ),
-            languages,
-        ];
-        let content = column![
-            column![
-                text( self.application_short_name.as_str() ),
-                text( self.version.as_str() ),
-            ].width( Length::Fill ).align_items( Alignment::Center ),
-            scrollable( body ).width( Length::Fill ).height( Length::Fill ),
-            column![
-                button( text( self.localisation.ok.as_str() ) )
-                .padding( [ 5, 10 ] )
-                .on_press( ApplicationMessage::Close( id.clone() ) ),
-            ].align_items( Alignment::Center ),
-        ].spacing( 10 ).align_items( Alignment::Center );
-        container( content ).padding( 2 )
+
+        body.push( text( self.localisation.contributors.as_str() ).into() );
+        body.push( column( contributors ).width( Length::Fill ).align_items( align_start ).into() );
+
+        #[cfg( feature = "i18n" )]
+        {
+            let mut localisations: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
+            let mut iterator = self.localisation_contributors.iter();
+            while let Some( language ) = iterator.next() {
+                let mut contributor: Vec<Element<ApplicationMessage>> = vec![
+                    text( "  " ).into(), // Indentation space
+                    text( language.clone() ).into(),
+                ];
+                if self.localisation.script_data.reverse_words {
+                    contributor.reverse();
+                }
+                localisations.push( row( contributor ).into() );
+            }
+            if self.localisation.script_data.reverse_lines {
+                localisations.reverse();
+            }
+            body.push( " ".into() ); // Paragraph separation
+            body.push( text( self.localisation.localisation_contributors.as_str() ).into() );
+            body.push( column( localisations ).width( Length::Fill ).align_items( align_start ).into() );
+        }
+
+        #[cfg( feature = "i18n" )]
+        if self.localisation.script_data.reverse_lines {
+            body.reverse();
+        }
+
+        content.push(
+            scrollable(
+                column( body ).width( Length::Fill ).align_items( align_start )
+            ).width( Length::Fill ).height( Length::Fill ).into()
+        );
+        content.push( " ".into() ); // Paragraph separation
+
+        // OK button
+        content.push( column![
+            button( text( self.localisation.ok.as_str() ) )
+            .padding( [ 5, 10 ] )
+            .on_press( ApplicationMessage::Close( id.clone() ) )
+        ].width( Length::Fill ).align_items( Alignment::Center ).into() );
+
+        #[cfg( feature = "i18n" )]
+        if self.localisation.script_data.reverse_lines {
+            content.reverse();
+        }
+
+        container( column( content ).width( Length::Fill ) ).padding( 2 )
         .into()
     }
 
@@ -206,14 +340,17 @@ impl WindowTrait for About {
         self.parent.clone() // Always WindowType::Main, thus just faking remove.
     }
 
+    #[cfg( feature = "i18n" )]
     fn try_update_localisation(
         &mut self,
         localisation: &Localisation,
-        environment: &Environment,
+        _environment: &Environment,
     ) -> Result<(), ApplicationError> {
         if self.localisation.language != localisation.localiser().default_language() {
-            error!( "Updating localisation." );
-            self.localisation = AboutLocalisation::try_new( localisation, environment )?;
+            #[cfg( feature = "log" )]
+            info!( "Updating localisation." );
+
+            self.localisation = AboutLocalisation::try_new( localisation, )?;
         }
         Ok( () )
     }
@@ -237,11 +374,16 @@ pub fn display_about(
     if !application.windows.contains_key( &WindowType::About ) {
         application.windows.insert(
             WindowType::About,
-            Box::new( About::try_new( &application.localisation, &application.environment )? )
+            Box::new( About::try_new(
+                #[cfg( feature = "i18n" )] &application.localisation,
+            )? )
         );
     } else {
-        let window = application.windows.get_mut( &WindowType::About ).unwrap();
-        window.try_update_localisation( &application.localisation, &application.environment, )?;
+        #[cfg( feature = "i18n" )]
+        {
+            let window = application.windows.get_mut( &WindowType::About ).unwrap();
+            window.try_update_localisation( &application.localisation, &application.environment, )?;
+        }
     }
     let size = application.session.settings.ui.about.size;
     let option = &application.session.settings.ui.about.position;

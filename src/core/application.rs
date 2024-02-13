@@ -4,20 +4,16 @@
 use super::{
     error::ApplicationError,
     environment::Environment,
-    clap::Clap,
-    localisation::Localisation,
-    session::{ Session, Generic, },
+    session::Session,
     traits::AnyWindowTrait,
 };
 use crate::{
     widget::event_control::Container,
     window::{ // Windows of the application.
-        confirm_exit::{ self, display_confirm_exit, },
-        fatal_error::{ self, display_fatal_error, },
-        preferences::{ self, update_preferences, PreferencesMessage, Preferences, },
-        information,
-        main::{ self, update_main, Main, MainMessage },
-        about,
+        confirm_exit::display_confirm_exit,
+        fatal_error::display_fatal_error,
+        main::{ update_main, Main, MainMessage, },
+        preferences::{ self, update_preferences, PreferencesMessage, }
     },
 };
 use iced::{
@@ -34,11 +30,21 @@ use iced::{
 use std::collections::HashMap;
 use core::panic;
 
+#[cfg( feature = "clap" )]
+use super::clap::Clap;
+
+#[cfg( feature = "i18n" )]
+use super::localisation::Localisation;
+
+#[cfg( feature = "i18n" )]
+use crate::window::preferences::Preferences;
+
 #[cfg( feature = "log" )]
 use log4rs::Handle as LoggerHandler;
 
 #[cfg( feature = "log" )]
-use log::{ /*debug,*/ error, info };
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
 
 #[derive( Debug, Clone, Eq, PartialEq, Hash )]
 pub enum WindowType {
@@ -48,6 +54,19 @@ pub enum WindowType {
     Information,
     Preferences,
     About,
+}
+
+impl WindowType {
+    pub fn as_str( &self ) -> &str {
+        match self {
+            WindowType::Main => "Main",
+            WindowType::ConfirmExit => "ConfirmExit",
+            WindowType::FatalError => "FatalError",
+            WindowType::Information => "Information",
+            WindowType::Preferences => "Preferences",
+            WindowType::About => "About",
+        }
+    }
 }
 
 #[derive( Debug, Clone )]
@@ -64,73 +83,95 @@ pub enum ApplicationMessage {
 // Just a container for transferring initialisation instances, that can't be done within ApplicationThread::new().
 #[derive( Clone )]
 pub struct StartUp {
-    pub clap: Clap,
-
-    #[cfg( feature = "log" )]
-    pub logger: LoggerHandler,
-
     pub session: Session,
-    pub first_time: bool,
+    #[cfg( feature = "clap" )] pub clap: Clap,
+    #[cfg( feature = "log" )] pub logger: LoggerHandler,
+    #[cfg( feature = "first_use" )] pub first_use: bool,
 }
 
 pub struct ApplicationThread {
-    first_time: bool, // Indicates if application is running for the first time.
     pub session: Session, // Includes application settings.
     pub environment: Environment,
-    pub localisation: Localisation,
+    #[cfg( feature = "i18n" )] pub localisation: Localisation,
     pub is_fatal_error: bool,
     pub window_ids: HashMap<window_iced::Id, WindowType>,
     pub windows: HashMap<WindowType, Box<dyn AnyWindowTrait>>,
+    #[cfg( feature = "first_use" )] first_use: bool, // Indicates if application is running for the first time.
 }
 
 impl ApplicationThread {
     fn try_new( flags: StartUp ) -> Result<( ApplicationThread, Command<ApplicationMessage> ), ApplicationError> {
         let environment = Environment::try_new( &flags )?;
+
+        #[cfg( feature = "i18n" )]
         let localisation = Localisation::try_new(
             &environment,
             &flags.session.settings.ui.language,
         )?;
+
+        #[cfg( feature = "i18n" )]
         println!( "Localisation initialised." );// Keep this line
+
         let mut window_ids = HashMap::<window_iced::Id, WindowType>::new();
         let mut windows =
         HashMap::<WindowType, Box<dyn AnyWindowTrait>>::new();
-        let mut session = flags.session;
-        if flags.first_time {
-            session.settings.ui.preferences = Generic { size: preferences::SIZE_DEFAULT, position: None };
-            session.settings.ui.main = Generic { size: main::SIZE_DEFAULT, position: None };
-            session.settings.ui.confirm_exit = Generic { size: confirm_exit::SIZE_DEFAULT, position: None };
-            session.settings.ui.fatal_error = Generic { size: fatal_error::SIZE_DEFAULT, position: None };
-            session.settings.ui.information = Generic { size: information::SIZE_DEFAULT, position: None };
-            session.settings.ui.about = Generic { size: about::SIZE_DEFAULT, position: None };
+        let session = flags.session;
+
+        #[cfg( feature = "first_use" )]
+        if flags.first_use {
+            #[cfg( feature = "log" )]
+            info!( "Creating Preferences window." );
+
             window_ids.insert( window_iced::Id::MAIN, WindowType::Preferences );
-            println!( "Creating Preferences window." );
             windows.insert(
                 WindowType::Preferences,
                 Box::new( Preferences::try_new(
-                    &localisation, &session.settings, flags.first_time, &environment
+                    #[cfg( feature = "i18n" )] &localisation,
+                    &session.settings,
+                    flags.first_use,
                 )? )
             );
         } else {
+            #[cfg( feature = "log" )]
+            info!( "Creating Main window." );
+
             window_ids.insert( window_iced::Id::MAIN, WindowType::Main );
-            println!( "Creating Main window." );
             windows.insert(
                 WindowType::Main,
-                Box::new( Main::try_new( &localisation, &environment )? )
+                Box::new( Main::try_new(
+                    #[cfg( feature = "i18n" )] &localisation,
+                )? )
             );
         }
+
+        #[cfg( not( feature = "first_use" ) )]
+        {
+            #[cfg( feature = "log" )]
+            info!( "Creating Main window." );
+
+            window_ids.insert( window_iced::Id::MAIN, WindowType::Main );
+            windows.insert(
+                WindowType::Main,
+                Box::new( Main::try_new(
+                    #[cfg( feature = "i18n" )] &localisation,
+                )? )
+            );
+        }
+
         Ok( ( ApplicationThread {
-            first_time: flags.first_time,
             session,
             environment,
-            localisation,
+            #[cfg( feature = "i18n" )] localisation,
             is_fatal_error: false,
             window_ids,
             windows,
+            #[cfg( feature = "first_use" )] first_use: flags.first_use,
         }, Command::none() ) )
     }
 
-    pub fn first_time( &self ) -> bool {
-        self.first_time
+    #[cfg( feature = "first_use" )]
+    pub fn first_use( &self ) -> bool {
+        self.first_use
     }
 
     fn try_update(
@@ -149,16 +190,16 @@ impl ApplicationThread {
                                         self, ApplicationError::WindowIdNotFound( id )
                                     ) );
                                 };
-                                match window_type {
-                                    WindowType::Main => {
-                                        let Some( window ) =
-                                        self.windows.get( &WindowType::Main ) else {
-                                            return Ok( display_fatal_error(
-                                                self,
-                                                ApplicationError::WindowTypeNotFound( window_type.clone() )
-                                            ) );
-                                        };
-                                        if window.is_enabled() {
+                                let Some( window ) =
+                                self.windows.get( &window_type ) else {
+                                    return Ok( display_fatal_error(
+                                        self,
+                                        ApplicationError::WindowTypeNotFound( window_type.clone() )
+                                    ) );
+                                };
+                                if window.is_enabled() {
+                                    match window_type {
+                                        WindowType::Main => {
                                             if self.is_fatal_error {
 
                                                 #[cfg( feature = "log" )]
@@ -169,8 +210,8 @@ impl ApplicationThread {
                                             } else if self.is_unsaved() {
                                                 command = display_confirm_exit(
                                                     self,
-                                                    "Window decoration button was pressed and there is \
-                                                    unsaved data."
+                                                    #[cfg( feature = "log" )] "Window decoration button was pressed \
+                                                    and there is unsaved data."
                                                 )?;
                                             } else {
 
@@ -180,15 +221,17 @@ impl ApplicationThread {
 
                                                 command = self.save_and_exit();
                                             }
+                                        },
+                                        WindowType::FatalError => {
+                                            command = self.save_and_exit();
+                                        },
+                                        WindowType::Preferences => command = preferences::close(
+                                            self, id
+                                        )?,
+                                        //WindowType::Connecting => {}, // Disable close button
+                                        _ => { // Generic window close
+                                            command = self.close( id )?
                                         }
-                                    },
-                                    WindowType::FatalError => {
-                                        command = self.save_and_exit();
-                                    },
-                                    WindowType::Preferences => command = preferences::close( self, id )?,
-                                    //WindowType::Connecting => {}, // Disable close button
-                                    _ => { // Generic window close
-                                        command = self.close( id )?
                                     }
                                 }
                             },
@@ -252,6 +295,8 @@ impl ApplicationThread {
             if self.is_unsaved() {
                 //flush database to file
             }
+
+            #[cfg( feature = "persistent" )]
             let _ = self.session.save();
         }
         let mut commands =

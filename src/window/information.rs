@@ -1,86 +1,144 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use crate::core::{
-    application::{
-        WindowType,
-        ApplicationMessage,
-        ApplicationThread,
+use crate::{
+        core::{
+        application::{
+            WindowType,
+            ApplicationMessage,
+            ApplicationThread,
+        },
+        error::ApplicationError,
+        traits::{ AnyWindowTrait, WindowTrait },
     },
-    error::ApplicationError,
-    localisation::Localisation,
-    environment::Environment,
-    traits::{ AnyWindowTrait, WindowTrait },
-
-};
-use i18n::{
-    pattern::PlaceholderValue,
-    utility::TaggedString
+    APPLICATION_NAME_SHORT,
 };
 use iced::{
     window,
     Command,
-    widget::{ button, column, container, text },
-    alignment,
+    widget::{ button, column, container, text, scrollable },
     Alignment,
     Element,
     Length,
     Size,
     Point,
 };
-use log::error;
-use std::{
-    collections::HashMap,
-    any::Any,
+use std::any::Any;
+
+#[cfg( feature = "i18n" )]
+use crate::core::{
+    localisation::{
+        Localisation,
+        ScriptData,
+    },
+    environment::Environment,
 };
 
-#[cfg( feature = "sync" )]
+#[cfg( feature = "i18n" )]
+use i18n::utility::{ TaggedString as LString, PlaceholderValue, };
+
+#[cfg( not( feature = "i18n" ) )]
+use std::string::String as LString;
+
+#[cfg( feature = "log" )]
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
+
+#[cfg( feature = "i18n" )]
+use std::collections::HashMap;
+
+#[cfg( all( feature = "i18n", feature = "sync" ) )]
 use std::sync::Arc as RefCount;
 
-#[cfg( not( feature = "sync" ) )]
+#[cfg( all( feature = "i18n", not( feature = "sync" ) ) )]
 use std::rc::Rc as RefCount;
 
 // Constants
 //const SIZE_MIN: ( f32, f32 ) = ( 400f32, 300f32 );
-pub const SIZE_DEFAULT: ( f32, f32 ) = ( 400f32, 300f32 );
+pub const SIZE_DEFAULT: ( f32, f32 ) = ( 600f32, 200f32 );
 const RESIZABLE: bool = false;
 //const MAXIMISE: bool = false;
 
 struct InformationLocalisation {
-    language: RefCount<String>,
+    #[cfg( feature = "i18n" )] language: RefCount<String>,
+    #[cfg( feature = "i18n" )] script_data: ScriptData,
 
     // Strings
-    information: TaggedString,
-    error: TaggedString,
-    warning: TaggedString,
-    close: TaggedString,
+    information: LString,
+    error: LString,
+    warning: LString,
+    close: LString,
 
     // Dynamic strings
-    title: TaggedString,
-    message: TaggedString,
+    title: LString,
+    message: LString,
 }
 
 impl InformationLocalisation {
     pub fn try_new(
-        localisation: &Localisation,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<Self, ApplicationError> {
+        #[cfg( feature = "i18n" )]
         let language = localisation.localiser().default_language();
+
+        #[cfg( feature = "i18n" )]
+        let locale = localisation.localiser().language_tag_registry().locale(
+            language.as_str()
+        )?;
+
+        #[cfg( feature = "i18n" )]
+        let information = localisation.localiser().literal_with_defaults(
+            "word", "information_i"
+        )?;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let information = "Information".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let warning = localisation.localiser().literal_with_defaults(
+            "word", "warning_i"
+        )?;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let warning = "Warning".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let error = localisation.localiser().literal_with_defaults(
+            "word", "error_i"
+        )?;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let error = "Error".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let close = localisation.localiser().literal_with_defaults(
+            "word", "close_i"
+        )?;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let close = "Close".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let title = LString::new( "", &language );
+
+        #[cfg( not( feature = "i18n" ) )]
+        let title = "".to_string();
+
+        #[cfg( feature = "i18n" )]
+        let message = LString::new( "", &language );
+
+        #[cfg( not( feature = "i18n" ) )]
+        let message = "".to_string();
+
         Ok( InformationLocalisation {
-            information: localisation.localiser().literal_with_defaults(
-                "word", "information_i"
-            )?,
-            language: RefCount::clone( &language ),
-            error: localisation.localiser().literal_with_defaults(
-                "word", "error_i"
-            )?,
-            warning: localisation.localiser().literal_with_defaults(
-                "word", "warn_i"
-            )?,
-            close: localisation.localiser().literal_with_defaults(
-                "word", "close_i"
-            )?,
-            title: TaggedString::new( "", &language ),
-            message: TaggedString::new( "", &language ),
+            #[cfg( feature = "i18n" )] language,
+            #[cfg( feature = "i18n" )] script_data: ScriptData::new( localisation, &locale ),
+            information,
+            error,
+            warning,
+            close,
+            title,
+            message,
         } )
     }
 }
@@ -90,123 +148,143 @@ pub struct Information {
     parent: Option<WindowType>,
     localisation: InformationLocalisation,
     information_type: InformationType,
-    application_short_name: String,
 }
 
 impl Information {
     pub fn try_new(
-        localisation: &Localisation,
-        environment: &Environment,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<Self, ApplicationError> {
-        let localisation = InformationLocalisation::try_new( localisation )?;
+        let localisation = InformationLocalisation::try_new(
+            #[cfg( feature = "i18n" )] localisation
+        )?;
         Ok( Information {
             enabled: true,
             parent: Some( WindowType::Main ),
             localisation,
             information_type: InformationType::Information,
-            application_short_name: environment.application_short_name.clone(),
         } )
     }
-
+    
     pub fn information(
         &mut self,
         parent: &WindowType,
-        title: TaggedString,
-        message: TaggedString,
-        localisation: &Localisation,
+        title: LString,
+        message: LString,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<(), ApplicationError> {
         self.parent = Some( parent.clone() );
         self.information_type = InformationType::Information;
         self.localisation.message = message;
-        let name = localisation.localiser().literal_with_defaults(
-            "application", title.as_str()
-        )?;
-        let mut values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "application".to_string(),
-            PlaceholderValue::String( self.application_short_name.clone() ),
-        );
-        values.insert(
-            "type".to_string(), 
-            PlaceholderValue::TaggedString( self.localisation.information.clone() ),
-        );
-        values.insert(
-            "window".to_string(), 
-            PlaceholderValue::TaggedString( name ),
-        );
-        self.localisation.title = localisation.localiser().format_with_defaults(
-            "application",
-            "window_type_title_format",
-            &values
-        )?;
+
+        #[cfg( feature = "i18n" )]
+        {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "application".to_string(),
+                PlaceholderValue::String( APPLICATION_NAME_SHORT.to_string() ),
+            );
+            values.insert(
+                "type".to_string(), 
+                PlaceholderValue::TaggedString( self.localisation.information.clone() ),
+            );
+            values.insert(
+                "window".to_string(), 
+                PlaceholderValue::TaggedString( title ),
+            );
+            self.localisation.title = localisation.localiser().format_with_defaults(
+                "application",
+                "window_type_title_format",
+                &values
+            )?;
+        }
+
+        #[cfg( not( feature = "i18n" ) )]
+        {
+            self.localisation.title = format!( "{} - Information: {}", APPLICATION_NAME_SHORT, title );
+        }
+
         Ok( () )
     }
 
     pub fn warning(
         &mut self,
         parent: &WindowType,
-        title: TaggedString,
-        message: TaggedString,
-        localisation: &Localisation,
+        title: LString,
+        message: LString,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<(), ApplicationError> {
         self.parent = Some( parent.clone() );
-        self.information_type = InformationType::Information;
+        self.information_type = InformationType::Warning;
         self.localisation.message = message;
-        let name = localisation.localiser().literal_with_defaults(
-            "application", title.as_str()
-        )?;
-        let mut values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "application".to_string(),
-            PlaceholderValue::String( self.application_short_name.clone() ),
-        );
-        values.insert(
-            "type".to_string(), 
-            PlaceholderValue::TaggedString( self.localisation.warning.clone() ),
-        );
-        values.insert(
-            "window".to_string(), 
-            PlaceholderValue::TaggedString( name ),
-        );
-        self.localisation.title = localisation.localiser().format_with_defaults(
-            "application",
-            "window_type_title_format",
-            &values
-        )?;
+
+        #[cfg( feature = "i18n" )]
+        {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "application".to_string(),
+                PlaceholderValue::String( APPLICATION_NAME_SHORT.to_string() ),
+            );
+            values.insert(
+                "type".to_string(), 
+                PlaceholderValue::TaggedString( self.localisation.warning.clone() ),
+            );
+            values.insert(
+                "window".to_string(), 
+                PlaceholderValue::TaggedString( title ),
+            );
+            self.localisation.title = localisation.localiser().format_with_defaults(
+                "application",
+                "window_type_title_format",
+                &values
+            )?;
+        }
+
+        #[cfg( not( feature = "i18n" ) )]
+        {
+            self.localisation.title = format!( "{} - Warning: {}", APPLICATION_NAME_SHORT, title );
+        }
+
         Ok( () )
     }
 
     pub fn error(
         &mut self,
         parent: &WindowType,
-        title: TaggedString,
-        message: TaggedString,
-        localisation: &Localisation,
+        title: LString,
+        message: LString,
+        #[cfg( feature = "i18n" )] localisation: &Localisation,
     ) -> Result<(), ApplicationError> {
         self.parent = Some( parent.clone() );
-        self.information_type = InformationType::Information;
+        self.information_type = InformationType::Error;
         self.localisation.message = message;
-        let name = localisation.localiser().literal_with_defaults(
-            "application", title.as_str()
-        )?;
-        let mut values = HashMap::<String, PlaceholderValue>::new();
-        values.insert(
-            "application".to_string(),
-            PlaceholderValue::String( self.application_short_name.clone() ),
-        );
-        values.insert(
-            "type".to_string(), 
-            PlaceholderValue::TaggedString( self.localisation.error.clone() ),
-        );
-        values.insert(
-            "window".to_string(), 
-            PlaceholderValue::TaggedString( name ),
-        );
-        self.localisation.title = localisation.localiser().format_with_defaults(
-            "application",
-            "window_type_title_format",
-            &values
-        )?;
+
+        #[cfg( feature = "i18n" )]
+        {
+            let mut values = HashMap::<String, PlaceholderValue>::new();
+            values.insert(
+                "application".to_string(),
+                PlaceholderValue::String( APPLICATION_NAME_SHORT.to_string() ),
+            );
+            values.insert(
+                "type".to_string(), 
+                PlaceholderValue::TaggedString( self.localisation.error.clone() ),
+            );
+            values.insert(
+                "window".to_string(), 
+                PlaceholderValue::TaggedString( title ),
+            );
+            self.localisation.title = localisation.localiser().format_with_defaults(
+                "application",
+                "window_type_title_format",
+                &values
+            )?;
+        }
+
+        #[cfg( not( feature = "i18n" ) )]
+        {
+            self.localisation.title = format!( "{} - Error: {}", APPLICATION_NAME_SHORT, title );
+        }
+
         Ok( () )
     }
 }
@@ -222,23 +300,42 @@ impl WindowTrait for Information {
         self
     }
 
-    fn title( &self ) -> &TaggedString {
+    fn title( &self ) -> &LString {
         &self.localisation.title
     }
 
     fn view( &self, id: &window::Id ) -> Element<ApplicationMessage> {
-        let content = column![
-            text( self.localisation.title.as_str() ),
-            text( self.localisation.message.as_str() ),
-            button( self.localisation.close.as_str() )
+        #[cfg( feature = "i18n" )]
+        let align_start = self.localisation.script_data.align_words_start;
+
+        #[cfg( not( feature = "i18n" ) )]
+        let align_start = Alignment::Start;
+
+        let mut content: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
+
+        // Message
+        content.push(
+            scrollable(
+                column![ text( self.localisation.message.as_str() ) ]
+                .width( Length::Fill )
+                .align_items( align_start )
+            ).width( Length::Fill ).height( Length::Fill ).into()
+        );
+        content.push( " ".into() ); // Paragraph separation
+
+        // Close button
+        content.push( column![
+            button( text( self.localisation.close.as_str() ) )
             .padding( [ 5, 10 ] )
-            .on_press( ApplicationMessage::Close( id.clone() ) ),
-        ].spacing( 10 ).align_items( Alignment::Center );
-        container( container( content ).width( 510 ) )
-        .align_x( alignment::Horizontal::Center )
-        .align_y( alignment::Vertical::Center )
-        .width( Length::Fill )
-        .height( Length::Fill )
+            .on_press( ApplicationMessage::Close( id.clone() ) )
+        ].width( Length::Fill ).align_items( Alignment::Center ).into() );
+
+        #[cfg( feature = "i18n" )]
+        if self.localisation.script_data.reverse_lines {
+            content.reverse();
+        }
+
+        container( column( content ).width( Length::Fill ) ).height( Length::Fill ).padding( 2 )
         .into()
     }
 
@@ -251,13 +348,16 @@ impl WindowTrait for Information {
     }
 
     #[allow(unused_variables)]
+    #[cfg( feature = "i18n" )]
     fn try_update_localisation(
         &mut self,
         localisation: &Localisation,
         environment: &Environment,
     ) -> Result<(), ApplicationError> {
         if self.localisation.language != localisation.localiser().default_language() {
-            error!( "Updating localisation." );
+            #[cfg( feature = "log" )]
+            info!( "Updating localisation." );
+
             self.localisation = InformationLocalisation::try_new( localisation )?;
         }
         Ok( () )
@@ -286,27 +386,48 @@ pub enum InformationType {
 
 pub fn display_information(
     application: &mut ApplicationThread,
-    title: TaggedString,
-    message: TaggedString,
+    title: LString,
+    message: LString,
     information_type: InformationType,
     parent: WindowType,
 ) -> Result<Command<ApplicationMessage>, ApplicationError> {
     if !application.windows.contains_key( &WindowType::Information ) {
+        
         application.windows.insert(
             WindowType::Information,
-            Box::new( Information::try_new( &application.localisation, &application.environment )? )
+            Box::new( Information::try_new(
+                #[cfg( feature = "i18n" )] &application.localisation,
+            )? )
         );
     } else {
-        let window = application.windows.get_mut( &WindowType::Information ).unwrap();
-        window.try_update_localisation( &application.localisation, &application.environment, )?;
+        #[cfg( feature = "i18n" )]
+        {
+            let window = application.windows.get_mut( &WindowType::Information ).unwrap();
+            window.try_update_localisation( &application.localisation, &application.environment, )?;
+        }
     }
     {
         let window = application.windows.get_mut( &WindowType::Information ).unwrap();
         let actual = window.as_any_mut().downcast_mut::<Information>().unwrap();
         match information_type {
-            InformationType::Information => actual.information( &parent, title, message, &application.localisation )?,
-            InformationType::Warning => actual.warning( &parent, title, message, &application.localisation )?,
-            InformationType::Error => actual.error( &parent, title, message, &application.localisation )?,
+            InformationType::Information => actual.information( 
+                &parent,
+                title,
+                message,
+                #[cfg( feature = "i18n" )] &application.localisation
+            )?,
+            InformationType::Warning => actual.warning(
+                &parent,
+                title,
+                message,
+                #[cfg( feature = "i18n" )] &application.localisation
+            )?,
+            InformationType::Error => actual.error(
+                &parent,
+                title,
+                message,
+                #[cfg( feature = "i18n" )] &application.localisation
+            )?,
         }
     }
     let size = application.session.settings.ui.information.size;
@@ -324,5 +445,5 @@ pub fn display_information(
         exit_on_close_request: false,
         ..Default::default()
     };
-    application.spawn_with_disable( settings, &WindowType::Information, &WindowType::Main )
+    application.spawn_with_disable( settings, &WindowType::Information, &parent )
 }

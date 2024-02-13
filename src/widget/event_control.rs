@@ -24,7 +24,6 @@ use iced::{
     Length,
     Padding,
     Pixels,
-    //Point,
     Rectangle,
     Size,
 };

@@ -10,6 +10,10 @@ use log4rs::{
 use log::LevelFilter;
 use core::fmt::{ Display, Formatter, Result as FormatterResult };
 
+#[cfg( feature = "log" )]
+#[allow( unused_imports )]
+use log::{ error, warn, info, debug, trace };
+
 #[derive( Copy, Clone, PartialEq, Eq, Debug )]
 pub enum LogLevelConverter {
     Off,

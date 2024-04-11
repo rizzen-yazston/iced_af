@@ -1,9 +1,21 @@
 = Changelog
 Rizzen Yazston
 
+== iced_af 0.3.0 (2024-03-??)
+
+WARNING: Breaking changes resulting from 2 dependencies, or 3 dependencies if crate feature `i18n` is enabled.
+
+* Updated `iced_af` to use `iced` 0.12.0, `iced_aw` 0.8.0, and for crate feature `i18n` the `i18n-rizzen-yazston` 0.9.1. 
+
+* Updated the event_control container `event_control.rs` to use `iced` released version 0.12.0 instead of the `master` branch prior to 0.12.0 being released.
+
+* Also updated `trait.rs` and `menu_bars.rs` to work with `iced` 0.12.0. The change involved the decoupling of `Theme` from `Renderer`.
+
+* Expanded the logging setting in the Preference window.
+
 == iced_af 0.2.0 (2024-02-13)
 
-* added feature options for various configurations that applications may use.
+* Added feature options for various configurations that applications may use.
 
 * Added script layout flow direction support for the windows.
 

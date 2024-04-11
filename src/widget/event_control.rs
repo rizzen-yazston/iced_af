@@ -1,45 +1,34 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
+//! Decorate content and apply alignment.
+
+#![allow(clippy::too_many_arguments)]
+
 use iced::{
     advanced::{
-        layout,
-        mouse,
-        renderer,
-        widget::{ self, Operation, Tree, tree },
-        Clipboard,
-        Layout,
-        Shell,
-        Widget,
+        layout, mouse, renderer,
+        widget::{self, tree, Operation, Tree},
+        Clipboard, Layout, Shell, Widget,
     },
-    alignment,
-    event,
-    overlay,
-    widget::container::{ Appearance, StyleSheet },
-    Alignment,
-    Background,
-    Color,
-    Element,
-    Event,
-    Length,
-    Padding,
-    Pixels,
-    Rectangle,
-    Size,
+    alignment, event, overlay,
+    widget::container::{Appearance, StyleSheet},
+    Alignment, Background, Color, Command, Element, Event, Length, Padding, Pixels, Point,
+    Rectangle, Size, Vector,
 };
 use std::hash::Hash;
 
 /// A container widget (based on original iced::widget::Container) to include a boolean to toggle the handling of
 /// events. When container is in disabled mode, the events generated on the various children are simply ignored, and
 /// thus are not queued. When contain is in enabled mode, the events are handled and queued as normal.
-/// 
+///
 /// This widget is primary used as the root widget of windows which require all widgets of a window to be disabled
 /// while a popup window is displayed.
 #[allow(missing_debug_implementations)]
-pub struct Container<'a, Message, Renderer = iced::Renderer>
+pub struct Container<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
+    Theme: StyleSheet,
     Renderer: iced::advanced::Renderer,
-    Renderer::Theme: StyleSheet,
 {
     id: Option<Id>,
     padding: Padding,
@@ -49,131 +38,142 @@ where
     max_height: f32,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
-    style: <Renderer::Theme as StyleSheet>::Style,
-    content: Element<'a, Message, Renderer>,
+    style: Theme::Style,
+    clip: bool,
+    content: Element<'a, Message, Theme, Renderer>,
     events_enabled: bool,
 }
 
-impl<'a, Message, Renderer> Container<'a, Message, Renderer>
+impl<'a, Message, Theme, Renderer> Container<'a, Message, Theme, Renderer>
 where
+    Theme: StyleSheet,
     Renderer: iced::advanced::Renderer,
-    Renderer::Theme: StyleSheet,
 {
     /// Creates an empty [`Container`].
-    pub fn new<T>( content: T, events_enabled: bool ) -> Self
+    pub fn new<T>(content: T, events_enabled: bool) -> Self
     where
-        T: Into<Element<'a, Message, Renderer>>,
+        T: Into<Element<'a, Message, Theme, Renderer>>,
     {
+        let content = content.into();
+        let size = content.as_widget().size_hint();
+
         Container {
             id: None,
             padding: Padding::ZERO,
-            width: Length::Shrink,
-            height: Length::Shrink,
+            width: size.width.fluid(),
+            height: size.height.fluid(),
             max_width: f32::INFINITY,
             max_height: f32::INFINITY,
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Top,
             style: Default::default(),
-            content: content.into(),
+            clip: false,
+            content,
             events_enabled,
         }
     }
 
     /// Sets the [`Id`] of the [`Container`].
-    pub fn id( mut self, id: Id ) -> Self {
-        self.id = Some( id );
+    pub fn id(mut self, id: Id) -> Self {
+        self.id = Some(id);
         self
     }
 
     /// Sets the [`Padding`] of the [`Container`].
-    pub fn padding<P: Into<Padding>>( mut self, padding: P ) -> Self {
+    pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
         self.padding = padding.into();
         self
     }
 
     /// Sets the width of the [`Container`].
-    pub fn width( mut self, width: impl Into<Length> ) -> Self {
+    pub fn width(mut self, width: impl Into<Length>) -> Self {
         self.width = width.into();
         self
     }
 
     /// Sets the height of the [`Container`].
-    pub fn height( mut self, height: impl Into<Length> ) -> Self {
+    pub fn height(mut self, height: impl Into<Length>) -> Self {
         self.height = height.into();
         self
     }
 
     /// Sets the maximum width of the [`Container`].
-    pub fn max_width( mut self, max_width: impl Into<Pixels> ) -> Self {
+    pub fn max_width(mut self, max_width: impl Into<Pixels>) -> Self {
         self.max_width = max_width.into().0;
         self
     }
 
     /// Sets the maximum height of the [`Container`].
-    pub fn max_height( mut self, max_height: impl Into<Pixels> ) -> Self {
+    pub fn max_height(mut self, max_height: impl Into<Pixels>) -> Self {
         self.max_height = max_height.into().0;
         self
     }
 
     /// Sets the content alignment for the horizontal axis of the [`Container`].
-    pub fn align_x( mut self, alignment: alignment::Horizontal ) -> Self {
+    pub fn align_x(mut self, alignment: alignment::Horizontal) -> Self {
         self.horizontal_alignment = alignment;
         self
     }
 
     /// Sets the content alignment for the vertical axis of the [`Container`].
-    pub fn align_y( mut self, alignment: alignment::Vertical ) -> Self {
+    pub fn align_y(mut self, alignment: alignment::Vertical) -> Self {
         self.vertical_alignment = alignment;
         self
     }
 
     /// Centers the contents in the horizontal axis of the [`Container`].
-    pub fn center_x( mut self ) -> Self {
+    pub fn center_x(mut self) -> Self {
         self.horizontal_alignment = alignment::Horizontal::Center;
         self
     }
 
-
     /// Centers the contents in the vertical axis of the [`Container`].
-    pub fn center_y( mut self ) -> Self {
+    pub fn center_y(mut self) -> Self {
         self.vertical_alignment = alignment::Vertical::Center;
         self
     }
 
     /// Sets the style of the [`Container`].
-    pub fn style(
-        mut self,
-        style: impl Into<<Renderer::Theme as StyleSheet>::Style>,
-    ) -> Self {
+    pub fn style(mut self, style: impl Into<Theme::Style>) -> Self {
         self.style = style.into();
+        self
+    }
+
+    /// Sets whether the contents of the [`Container`] should be clipped on
+    /// overflow.
+    pub fn clip(mut self, clip: bool) -> Self {
+        self.clip = clip;
         self
     }
 }
 
-
-impl<'a, Message, Renderer> Widget<Message, Renderer> for Container<'a, Message, Renderer>
+impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+    for Container<'a, Message, Theme, Renderer>
 where
+    Theme: StyleSheet,
     Renderer: iced::advanced::Renderer,
-    Renderer::Theme: StyleSheet,
 {
-    fn tag( &self ) -> tree::Tag {
+    fn tag(&self) -> tree::Tag {
         self.content.as_widget().tag()
     }
 
-    fn state( &self ) -> tree::State {
+    fn state(&self) -> tree::State {
         self.content.as_widget().state()
     }
 
-    fn children( &self ) -> Vec<Tree> {
+    fn children(&self) -> Vec<Tree> {
         self.content.as_widget().children()
     }
 
-    fn diff( &self, tree: &mut Tree ) {
-        self.content.as_widget().diff( tree );
+    fn diff(&self, tree: &mut Tree) {
+        self.content.as_widget().diff(tree);
     }
 
-    fn size( &self ) -> Size<Length> {
-        Size { width: self.width, height: self.height }
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: self.width,
+            height: self.height,
+        }
     }
 
     fn layout(
@@ -191,7 +191,7 @@ where
             self.padding,
             self.horizontal_alignment,
             self.vertical_alignment,
-            |limits| self.content.as_widget().layout( tree, renderer, limits ),
+            |limits| self.content.as_widget().layout(tree, renderer, limits),
         )
     }
 
@@ -203,7 +203,7 @@ where
         operation: &mut dyn Operation<Message>,
     ) {
         operation.container(
-            self.id.as_ref().map( |id| &id.0 ),
+            self.id.as_ref().map(|id| &id.0),
             layout.bounds(),
             &mut |operation| {
                 self.content.as_widget().operate(
@@ -263,29 +263,31 @@ where
         &self,
         tree: &Tree,
         renderer: &mut Renderer,
-        theme: &Renderer::Theme,
+        theme: &Theme,
         renderer_style: &renderer::Style,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        let style = theme.appearance( &self.style );
+        let style = theme.appearance(&self.style);
 
-        if let Some( viewport ) = layout.bounds().intersection( viewport ) {
-            draw_background( renderer, &style, layout.bounds() );
+        if let Some(clipped_viewport) = layout.bounds().intersection(viewport) {
+            draw_background(renderer, &style, layout.bounds());
 
             self.content.as_widget().draw(
                 tree,
                 renderer,
                 theme,
                 &renderer::Style {
-                    text_color: style
-                        .text_color
-                        .unwrap_or( renderer_style.text_color ),
+                    text_color: style.text_color.unwrap_or(renderer_style.text_color),
                 },
                 layout.children().next().unwrap(),
                 cursor,
-                &viewport,
+                if self.clip {
+                    &clipped_viewport
+                } else {
+                    viewport
+                },
             );
         }
     }
@@ -295,26 +297,28 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-    ) -> Option<overlay::Element<'b, Message, Renderer>> {
+        translation: Vector,
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content.as_widget_mut().overlay(
             tree,
             layout.children().next().unwrap(),
             renderer,
+            translation,
         )
     }
 }
 
-impl<'a, Message, Renderer> From<Container<'a, Message, Renderer>>
-    for Element<'a, Message, Renderer>
+impl<'a, Message, Theme, Renderer> From<Container<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: 'a,
+    Theme: 'a + StyleSheet,
     Renderer: 'a + iced::advanced::Renderer,
-    Renderer::Theme: StyleSheet,
 {
     fn from(
-        container: Container<'a, Message, Renderer>,
-    ) -> Element<'a, Message, Renderer> {
-        Element::new( container )
+        column: Container<'a, Message, Theme, Renderer>,
+    ) -> Element<'a, Message, Theme, Renderer> {
+        Element::new(column)
     }
 }
 
@@ -328,18 +332,18 @@ pub fn layout(
     padding: Padding,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
-    layout_content: impl FnOnce( &layout::Limits ) -> layout::Node,
+    layout_content: impl FnOnce(&layout::Limits) -> layout::Node,
 ) -> layout::Node {
     layout::positioned(
-        &limits.max_width( max_width ).max_height( max_height ),
+        &limits.max_width(max_width).max_height(max_height),
         width,
         height,
         padding,
-        |limits| layout_content( &limits.loose() ),
+        |limits| layout_content(&limits.loose()),
         |content, size| {
             content.align(
-                Alignment::from( horizontal_alignment ),
-                Alignment::from( vertical_alignment ),
+                Alignment::from(horizontal_alignment),
+                Alignment::from(vertical_alignment),
                 size,
             )
         },
@@ -366,26 +370,114 @@ pub fn draw_background<Renderer>(
             },
             appearance
                 .background
-                .unwrap_or( Background::Color( Color::TRANSPARENT ) ),
+                .unwrap_or(Background::Color(Color::TRANSPARENT)),
         );
     }
 }
 
 /// The identifier of a [`Container`].
-#[derive( Debug, Clone, PartialEq, Eq, Hash )]
-pub struct Id( widget::Id );
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Id(widget::Id);
 
 impl Id {
     /// Creates a custom [`Id`].
-    pub fn new( id: impl Into<std::borrow::Cow<'static, str>> ) -> Self {
-        Self( widget::Id::new( id ) )
+    pub fn new(id: impl Into<std::borrow::Cow<'static, str>>) -> Self {
+        Self(widget::Id::new(id))
     }
 
     /// Creates a unique [`Id`].
     ///
     /// This function produces a different [`Id`] every time it is called.
     pub fn unique() -> Self {
-        Self( widget::Id::unique() )
+        Self(widget::Id::unique())
     }
 }
 
+impl From<Id> for widget::Id {
+    fn from(id: Id) -> Self {
+        id.0
+    }
+}
+
+/// Produces a [`Command`] that queries the visible screen bounds of the
+/// [`Container`] with the given [`Id`].
+pub fn visible_bounds(id: Id) -> Command<Option<Rectangle>> {
+    struct VisibleBounds {
+        target: widget::Id,
+        depth: usize,
+        scrollables: Vec<(Vector, Rectangle, usize)>,
+        bounds: Option<Rectangle>,
+    }
+
+    impl Operation<Option<Rectangle>> for VisibleBounds {
+        fn scrollable(
+            &mut self,
+            _state: &mut dyn widget::operation::Scrollable,
+            _id: Option<&widget::Id>,
+            bounds: Rectangle,
+            translation: Vector,
+        ) {
+            match self.scrollables.last() {
+                Some((last_translation, last_viewport, _depth)) => {
+                    let viewport = last_viewport
+                        .intersection(&(bounds - *last_translation))
+                        .unwrap_or(Rectangle::new(Point::ORIGIN, Size::ZERO));
+
+                    self.scrollables
+                        .push((translation + *last_translation, viewport, self.depth));
+                }
+                None => {
+                    self.scrollables.push((translation, bounds, self.depth));
+                }
+            }
+        }
+
+        fn container(
+            &mut self,
+            id: Option<&widget::Id>,
+            bounds: Rectangle,
+            operate_on_children: &mut dyn FnMut(&mut dyn Operation<Option<Rectangle>>),
+        ) {
+            if self.bounds.is_some() {
+                return;
+            }
+
+            if id == Some(&self.target) {
+                match self.scrollables.last() {
+                    Some((translation, viewport, _)) => {
+                        self.bounds = viewport.intersection(&(bounds - *translation));
+                    }
+                    None => {
+                        self.bounds = Some(bounds);
+                    }
+                }
+
+                return;
+            }
+
+            self.depth += 1;
+
+            operate_on_children(self);
+
+            self.depth -= 1;
+
+            match self.scrollables.last() {
+                Some((_, _, depth)) if self.depth == *depth => {
+                    let _ = self.scrollables.pop();
+                }
+                _ => {}
+            }
+        }
+
+        fn finish(&self) -> widget::operation::Outcome<Option<Rectangle>> {
+            widget::operation::Outcome::Some(self.bounds)
+        }
+    }
+
+    Command::widget(VisibleBounds {
+        target: id.into(),
+        depth: 0,
+        scrollables: Vec::new(),
+        bounds: None,
+    })
+}

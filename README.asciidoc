@@ -13,11 +13,9 @@ The goal is to provide a starting application framework for developing native mu
 
 This project uses the {iced-url}[{iced}] library crates (including {iced_aw-url}[*iced_aw*] community crate for additional widgets) for the GUI of the application.
 
-NOTE:: Currently the `menu` feature of the `iced_aw` crate's `update` branch does not work with the `master` branch of `iced`. For the interim a simple fake menu bar is implemented in `menu_bar.rs`. Excuse the blocks of comments and individual comments scattered, leaving the commented code as a reminded to fix once `iced_aw` is stable and `menu` feature is fixed.
-
 In addition, the framework supports internationalisation as a feature option by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
 
-To support various applications, all the application's feature capabilities are gated with build feature options (see Features section).
+To support various applications, all the application's feature capabilities are gated with build feature options (see Features section). Features that are not used can be simply deleted for the application, thus simplifying the source code by reducing the need for `#[cfg(...)]` and `#[cfg(not()...)]` statements.
 
 == Features
 
@@ -27,7 +25,7 @@ The following features are available:
 
 * `sync`: To use `sync::Arc` instead of `rc::Rc`, their respective variants.
 
-* `i18n`: To enable international support. The design allows for all scripts, though currently only supports top to down scripts, due to `icu` currently only has flow direction information for top to bottom scripts (with plans to expand to all scripts). Uses the latest `i18n` version 0.8.0, that added new features.
+* `i18n`: To enable international support. The design allows for all scripts, though currently only supports top to down scripts, due to `icu` currently only has flow direction information for top to bottom scripts (with plans to expand to all scripts). Uses the latest `i18n` version 0.9.1, that added new features.
 
 * `persistent`: Specifies whether session data will be saved on exit, and restored at application launch. This feature is required if wanting applications settings to be persistent across usage.
 
@@ -35,11 +33,13 @@ The following features are available:
 
 * `clap`: Enabled command line support, for applications that like to have the ability to pass options/command/etc to the application. Note version used is 4.4.3, as 4.5 requires rustc version 0.74.
 
+In the `Cargo.toml` there is two `default` lines, one being commented out. One enables all the features, while the other enables none.
+
 == What is included
 
 The application framework has the following capabilities:
 
-* First time use of application, the Preferences window will be displayed prompting the user to select the user interface language (currently using language tags while waiting for *display name* feature to be completed in ICU4X),
+* If build with the `first_use` and `i18n` features for the application, the Preferences window will be displayed prompting the user to select the user interface language (currently using language tags while waiting for *display name* feature to be completed in ICU4X),
 
 * The following windows:
 
@@ -65,6 +65,8 @@ The application framework has the following capabilities:
 
 * Localisation of text and errors that supports internationalisation. Two demonstration languages included for almost all text. Deliberately the text displayed in Main window does not support localisation for demonstration purposes.
 
+* A trivial example for localisation on selected platforms. For MacOS target the menu bar and Confirm Exit windows uses "Quit <app_name>" instead of "Exit".
+
 == Usage
 
 NOTE:: There are no build scripts included, and data files need to be copied to target destination.
@@ -79,15 +81,9 @@ As this is a mini application framework for creating multi-window applications, 
 
 == Notes
 
-* The major version number will always match the major version number of {iced} being used.
-
-* Once the `menu` feature of *iced_aw* crate is ready, the framework will be updated.
-
-* Formatting of error message for localisation is still to be implemented.
+* Menu items are always centred, current implementation of `menu` in `iced_aw` does not have methods or means to change alignment to start or end.
 
 * This still work in progress, thus the windows may look a bit wonky. Currently focused on functionality than appearances.
-
-* Currently works with `master` branch of {iced} using commit `545cc90`.
 
 == Adding a new windows
 
@@ -113,7 +109,7 @@ As this is a mini application framework for creating multi-window applications, 
 
 ** If new window has its own `Message` enum, add it to `ApplicationMessage` enum, to be able to pass messages to the new window's `try_update()` method.
 
-** To `try_update()` method, add match branch for new window, either directly to window's `try_update()` method, or if needing to do more logic outside of window's `try_update()` method, can in the new window's rust file add a `update_?` function, where ? is the window abbreviation. See other branches for examples.
+** To `try_update()` method, add match branch for new window, either directly to window's `try_update()` method, or if needing to do more logic outside of window's `try_update()` method, in the new window's rust file can add a `update_?` function, where ? is the window abbreviation. See other branches for examples.
 
 ** To `resized()` and `moved()` methods add entries for the new window.
 
@@ -121,15 +117,17 @@ As this is a mini application framework for creating multi-window applications, 
 
 == Design process
 
-Currently just a copy from {iced}'s' Discord server discussion. Still to be cleaned up.
+Almost all the methods of the `i18n` library uses the `Result` type to be able to provide runtime errors that are catchable, where the developer of the application (or another library) can decide to ignore the error, display the error, or leave it uncaught to become a fatal error (application terminating). This is an intentional design of the `i18n` project.
 
-i will add the design principles once iced is released as 0.12.0, which will bring some stability to iced_af.
+On the other hand the `iced` library does not support the `Result` type as the return type for the `new()`, `update()` and `view()` methods. The `Result` of various `i18n` methods needs to be caught and handled within the application's main `new()` and `update()` methods.
 
-the i18n library almost all the methods uses the Result type to be able to provide runtime errors that are catchable, where the developer of the application (or another library) can decide to ignore the error, display the error, or leave it uncaught to become a fatal error. this is intentional, thus i inserted a try_update() method within the update() and if an uncaught error reaches this point, simply display the FatalError window, which displays the error message (handy when application is not launched from console) , also prints to console (if used), and if logging is enabled to write to the log.
+A new update method is created called `try_update()`, which contains all the logic that would have been in the application's `update()` method, and returns a `Result` type. This `try_update()` method is called within the `update()`, and if the result is the `Ok()` variant, then the `Command` enum is returned to the `iced` caller. However if the result is the `Err()` variant, then the `FatalError` state is created containing the error, and the resulting window spawn command is returned to the `iced` caller. The fatal error window, that is displayed, is a special type of window, in that it does not allow the `Err()` variant to be returned. Any error that occurs within the fatal error window's `try_update()` method is caught and handled, thus only the `Ok()` variant is returned containing a batch command to close all windows. The benefit of displaying the runtime fatal error before application closes, is when the application is not launched from a console where errors are normally displayed, and if logging is not supported to record the error in a logging system (usually files).
 
-you will notice there is no try_view() method in view(), this is due to that no errors must occur within view(). to overcome this issue of obtaining localisation strings, that may produce errors, especially if identifiers are missing, the localisation strings are retrieved at the time of the window state is created (as the new() method also includes the try_new() method, and errors are caught to be displayed with FatalError window), or during the update() method.
+Similar approach is used for the `new()` method, where the actual logic is placed in a new method called `try_new()`. If the result is an error, the application terminates with a `panic!()`, that contains a simple formatted message of the error. Otherwise the contents of the `Ok()` variant is returned.
 
-A note about FatalError, which is a special case, it will not produce fatal errors as a result of missing identifiers, or any other i18n error. it will then use the few built-in english strings and using the Debug and/or Display traits of types to be able to display the error on GUI, console, and to log if available.
-you will notice the multi-window example (which I started with) the windows was all the same. originally i used a field to specify the window type, to determine which content to display. yet the view() started becoming unyielding large with the match statement, thus decided to break up the view() into window specific view()s, but still had to maintain the basic match. same went with the try_update(). to resolve this i introduced the WindowType and WindowTrait (along with the AnyWindowTrait to be able to downcast from Any), and the resulting primary application view() became a simple generic method, that was capable of displaying any window type, or number of the same window. not currently seen in iced_af is multi of the same window, that is simply done by using enum variant including an integer (such as usize) or a String to identifier which window to display. the logic of determining which one will be in the logic of the window type's view().
+There is no equivalent `try_view()` method for `view()`, as no error must not occur. The `view()` method must only read the window state, and build the window accordingly. The window state at the time of creation must contain all the data required to be displayed, without requiring any form of formatting. The `view()` only allows the placing order to be altered, by reading fields of the window state. If the feature `i18n` is enabled, the localisation of text only takes place at the creation of the window state, or when updating the window state within the `try_update()` and `try_update_localisation()` methods of the window. However the application's main `view()` method does trap two possible errors when retrieving the window's actual `view()`, in this case the contents of the main window is replaced with an error message.
 
-a note on the messages being sent by the windows, or components of the windows, such as can be seen with Main window, it is important to include the window::Id in the message enum variant, when ever you are going to manipulate the iced window state, such as closing the window. once iced_aw has been updated, it will become more clear how to build windows from components, where each component would be in it's own file, containing their own Message, view() and try_update(). i believe the view, message, update, state, etc of a large component should always be kept together for easier maintenance of the code base, and using more generic methods at the core/parent methods to call the children. currently i am using a simple hack to create a "menu bar". menu of iced_aw is my next task to tackle, as it is a complex beast, with plenty breaking changes coming lately from iced that affects it. like to get menu done by the time iced 0.12.0 is released.
+As see from above, there are references of the application's main `try_update()` and `view()` methods calling the window's actual `try_update()` and `view()`. This approach of separating the update and view logic into their own methods for each window, was due to that the match statements became unyielding large, making it difficult to follow the logic of the individual windows. To do this the `WindowType` and `WindowTrait` (along with the `AnyWindowTrait` to be able to downcast from `Any`) was introduced to provide an uniform way of calling windows actual `try_update()` and `view()` methods. This also allowed the main `try_update` and `view()` methods to be greatly simplified.
+Also using an enum for the `WindowType`, it allows the possibility of including a window number (`usize`) or identifier as a `String` to be used when the are multiple windows of the same type. In the window's `try_update()` and `view()` the value of the enum variant is used to make changes to the specific window of the `WindowType` variant.
+
+The `Message` enum is also broken down into separate `Message` enums, one for each window if the application main `Message` enum and `try_update()` method does not contain the suitable message handling. 

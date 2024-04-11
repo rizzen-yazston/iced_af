@@ -3,144 +3,120 @@
 
 //! The binary entry point.
 
-use iced_af_rizzen_yazston::core::{
-    application::{
-        ApplicationThread,
-        StartUp,
-    },
+use iced::{
+    multi_window::Application,
+    window::{Position, Settings as WindowSettings},
+    Pixels, Point, Settings as ApplicationSettings, Size,
+};
+use iced_af::core::{
+    application::{ApplicationThread, StartUp},
     session::Session,
 };
-use iced::{
-    Settings as ApplicationSettings,
-    Point,
-    Size,
-    Pixels,
-    window::{
-        Settings as WindowSettings,
-        Position
-    },
-    multi_window::Application,
-};
 
-#[cfg( feature = "clap" )]
-use iced_af_rizzen_yazston::core::clap::Clap;
+#[cfg(feature = "clap")]
+use iced_af::core::clap::Clap;
 
-#[cfg( feature = "clap" )]
+#[cfg(feature = "clap")]
 use clap::Parser;
 
-#[cfg( feature = "log" )]
-use iced_af_rizzen_yazston::core::log::LogLevelConverter;
+#[cfg(feature = "log")]
+use iced_af::core::log::{new_logger, update_logger, LogLevel};
 
-#[cfg( feature = "log" )]
+#[cfg(feature = "log")]
 use log::warn;
-
-#[cfg( feature = "log" )]
-use std::str::FromStr;
 
 /// Depending on the features selected certain preparations for displaying the first window of the application is done.
 /// These preparations may included: some command arguments processing, restoration of application's session, first use
 /// of application (requires the `persistent` feature), and logging of messages.
 fn main() -> iced::Result {
-
     // Use clap for command line options. See clap.rs for various command options.
-    #[cfg( feature = "clap" )]
+    #[cfg(feature = "clap")]
     let clap = Clap::parse();
 
     // TODO: include options:
     // - maximise window
- 
+
     // For now just log to stdout.
-    #[cfg( all( feature = "clap", feature = "log" ) )]
-    let mut log_level = match clap.log_level {
-        None => LogLevelConverter::Warn,
-        Some( value ) => value
+    #[cfg(all(feature = "clap", feature = "log"))]
+    let log_level = match clap.log_level {
+        None => LogLevel::Warn,
+        Some(value) => value,
     };
 
-    #[cfg( all( not( feature = "clap" ), feature = "log" ) )]
-    let mut log_level = LogLevelConverter::Warn;
+    #[cfg(all(not(feature = "clap"), feature = "log"))]
+    let mut log_level = LogLevel::Warn;
 
-    #[cfg( feature = "log" )]
-    let logger = log_level.initalise_logger();
+    #[cfg(feature = "log")]
+    let mut logger = new_logger(log_level);
 
-    #[allow( unused_mut )]
+    #[allow(unused_mut)]
     let mut session = Session::default();
 
-    #[cfg( feature = "first_use" )]
+    #[cfg(feature = "first_use")]
     let mut first_use = false;
 
     // Restore application state (including main window state)
-    #[cfg( all( feature = "clap", feature = "persistent" ) )]
+    #[cfg(all(feature = "clap", feature = "persistent"))]
     if !clap.defaults {
-
-        #[cfg( feature = "log" )]
-        warn!( "Using saved settings." );
+        #[cfg(feature = "log")]
+        warn!("Using saved settings.");
 
         match Session::try_restore() {
-            Err( _error ) => {
+            Err(_error) => {
+                #[cfg(feature = "log")]
+                warn!("Restore state error: `{:?}`", _error);
 
-                #[cfg( feature = "log" )]
-                warn!( "Restore state error: `{:?}`", _error );
-
-                #[cfg( feature = "first_use" )]
+                #[cfg(feature = "first_use")]
                 {
                     first_use = true
                 }
-            },
-            Ok( value ) => {
-                #[cfg( feature = "log" )]
-                warn!( "Using saved settings." );
-            
+            }
+            Ok(value) => {
+                #[cfg(feature = "log")]
+                warn!("Using saved settings.");
+
                 session = value;
             }
         }
     }
 
-    #[cfg( all( not( feature = "clap" ),feature = "persistent" ) )]
+    #[cfg(all(not(feature = "clap"), feature = "persistent"))]
     match Session::try_restore() {
-        Err( _error ) => {
+        Err(_error) => {
+            #[cfg(feature = "log")]
+            warn!("Restore state error: `{:?}`", _error);
 
-            #[cfg( feature = "log" )]
-            warn!( "Restore state error: `{:?}`", _error );
-
-            #[cfg( feature = "first_use" )]
+            #[cfg(feature = "first_use")]
             {
                 first_use = true
             }
-        },
-        Ok( value ) => {
-            #[cfg( feature = "log" )]
-            warn!( "Using saved settings." );
-        
+        }
+        Ok(value) => {
+            #[cfg(feature = "log")]
+            warn!("Using saved settings.");
+
             session = value;
         }
     }
 
-    #[cfg( all( feature = "clap", feature = "log" ) )]
+    #[cfg(all(feature = "clap", feature = "log"))]
     if clap.log_level.is_none() {
-        log_level = match LogLevelConverter::from_str( session.settings.log_level.as_str() ) {
-            Err( _error ) => {
-                warn!( "Invalid log level in saved session state, using default." );
-                session.settings.log_level = "warn".to_string();
-                LogLevelConverter::Warn
-            },
-            Ok( value ) => value,
-        };
-        log_level.configure_logger( &logger );
+        update_logger(&mut logger, &session.settings.log_levels);
     }
 
-    #[cfg( feature = "first_use" )]
+    #[cfg(feature = "first_use")]
     let size_saved = if first_use {
-        session.settings.ui.preferences.size //( 300f32, 100f32 )
+        session.settings.ui.preferences.size
     } else {
         session.settings.ui.main.size
     };
 
-    #[cfg( not( feature = "first_use" ) )]
+    #[cfg(not(feature = "first_use"))]
     let size_saved = session.settings.ui.main.size;
 
-    let size = Size::new( size_saved.0, size_saved.1 );
+    let size = Size::new(size_saved.0, size_saved.1);
 
-    #[cfg( feature = "first_use" )]
+    #[cfg(feature = "first_use")]
     let position = if first_use {
         Position::Centered
     } else {
@@ -149,31 +125,37 @@ fn main() -> iced::Result {
             Position::Centered
         } else {
             let value = option.as_ref().unwrap();
-            Position::Specific( Point { x: value.0, y: value.1 } )
+            Position::Specific(Point {
+                x: value.0,
+                y: value.1,
+            })
         }
     };
 
-    #[cfg( not( feature = "first_use" ) )]
+    #[cfg(not(feature = "first_use"))]
     let position = {
         let option = &session.settings.ui.main.position;
         if option.is_none() {
             Position::Centered
         } else {
             let value = option.as_ref().unwrap();
-            Position::Specific( Point { x: value.0, y: value.1 } )
+            Position::Specific(Point {
+                x: value.0,
+                y: value.1,
+            })
         }
     };
 
     let start_up = StartUp {
         session,
 
-        #[cfg( feature = "clap" )]
+        #[cfg(feature = "clap")]
         clap,
 
-        #[cfg( feature = "log" )]
+        #[cfg(feature = "log")]
         logger,
 
-        #[cfg( feature = "first_use" )]
+        #[cfg(feature = "first_use")]
         first_use,
     };
     let iced_settings = ApplicationSettings {
@@ -186,9 +168,9 @@ fn main() -> iced::Result {
         },
         flags: start_up,
         fonts: Default::default(),
-        default_font: Default::default(),//Font,
-        default_text_size: Pixels( 15.0 ),
+        default_font: Default::default(), //Font,
+        default_text_size: Pixels(15.0),
         antialiasing: false,
     };
-    ApplicationThread::run( iced_settings )
+    ApplicationThread::run(iced_settings)
 }

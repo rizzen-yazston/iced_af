@@ -2,8 +2,8 @@
 # called `LICENSE-BSD-3-Clause` at the top level of the `iced_af` project's Git repository.
 
 [package]
-name = "iced_af-rizzen-yazston"
-version = "0.2.0"
+name = "iced_af"
+version = "0.3.0"
 authors = ["Rizzen Yazston"]
 edition = "2021"
 rust-version = "1.70.0"
@@ -16,18 +16,18 @@ categories = [ "rust-pattern" ]
 
 [features]
 # Specify any application feature defaults here.
-default = []#[ "first_use", "clap", "log", "i18n" ]
+default = [ "first_use", "clap", "log", "i18n" ]
+#default = []
 
 # Allows for logging to be used, remember to add crates if logging is supported.
-log = [ "dep:log", "dep:log4rs", ]#"i18n-rizzen-yazston?/log", ] comment out until log feature bug fix has been released.
+log = [ "dep:log", "dep:log4rs", "i18n-rizzen-yazston?/logging", ]
 
 # Will allow for multithreaded concurrency, remember to add crates that support sync features.
 sync = [ "i18n-rizzen-yazston?/sync", ]
 
 # Enables the international support.
-i18n = [ "dep:i18n-rizzen-yazston", "dep:icu_locid_transform", "dep:icu_locid" ]
+i18n = [ "dep:i18n-rizzen-yazston", "dep:icu_locid_transform", "dep:icu_locid" ] #, "i18n-rizzen-yazston/default"
 
-# Specifies whether session data will be saved on exit, and restored at application launch.
 # This feature is required if wanting applications settings to be persistant across usage.
 persistent = [ "dep:serde", ]
 
@@ -38,19 +38,18 @@ clap = [ "dep:clap", "dep:ron", ]
 first_use = [ "persistent", ]
 
 [dependencies]
-#iced_aw = { version = "0.8.0", features = [ "menu", "quad", ] }
+iced_aw = { version = "0.8.0", features = [ "menu", "quad", ] }
 #iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "updates" } #, features = [ "menu", "quad" ]
 #iced_aw = { path = "../contributor/iced_aw", features = [ "tabs" ] } #, features = [ "menu", "quad" ]
-#iced = { version = "0.12.0", features = [ "multi-window", "advanced", ] }
+iced = { version = "0.12.0", features = [ "multi-window", "advanced", ] }
 #iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
-iced = { git = "https://github.com/iced-rs/iced.git", rev = "545cc90", features = [ "multi-window", "advanced" ] }
 #iced = { path = "../contributor/iced", features = [ "multi-window", "advanced" ] }
 dirs = "5.0.1"
 rfd = { version = "0.12.0", features = [ "gtk3" ] } # Used for the file select dialogue until iced has its own.
 
 # Optional dependendies
-#i18n-rizzen-yazston = { path = "../i18n/crates/i18n", features = [ "compiled_data", ], optional = true }
-i18n-rizzen-yazston = { version = "0.8.0", features = [ "compiled_data", ], optional = true }
+#i18n-rizzen-yazston = { path = "../i18n/crates/i18n", features = [ "icu_compiled_data", ], optional = true }
+i18n-rizzen-yazston = { version = "0.9.1", features = [ "icu_compiled_data", ], optional = true }
 icu_locid = { version = "1.4.0", optional = true }
 icu_locid_transform = { version = "1.4.0", optional = true }
 log = { version = "0.4.20", optional = true }

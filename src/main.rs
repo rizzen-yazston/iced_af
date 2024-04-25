@@ -39,12 +39,12 @@ fn main() -> iced::Result {
     // For now just log to stdout.
     #[cfg(all(feature = "clap", feature = "log"))]
     let log_level = match clap.log_level {
-        None => LogLevel::Warn,
+        None => LogLevel::Default,
         Some(value) => value,
     };
 
     #[cfg(all(not(feature = "clap"), feature = "log"))]
-    let mut log_level = LogLevel::Warn;
+    let mut log_level = LogLevel::Default;
 
     #[cfg(feature = "log")]
     let mut logger = new_logger(log_level);

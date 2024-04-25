@@ -20,7 +20,7 @@ pub struct Clap {
     #[arg(
         long,
         value_parser = clap::builder::PossibleValuesParser::new(
-            ["default, off", "trace", "debug", "info", "warn", "error"]
+            ["default", "off", "trace", "debug", "info", "warn", "error"]
         )
         .map(|s| {
             s.to_lowercase().as_str().parse::<LogLevel>().unwrap()

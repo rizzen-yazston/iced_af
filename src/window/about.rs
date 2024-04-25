@@ -419,23 +419,6 @@ pub fn display_about(
             )?;
         }
     }
-    /*
-    if !application.windows.contains_key(&WindowType::About) {
-        application.windows.insert(
-            WindowType::About,
-            Box::new(About::try_new(
-                #[cfg(feature = "i18n")]
-                &application.localisation,
-            )?),
-        );
-    } else {
-        #[cfg(feature = "i18n")]
-        {
-            let window = application.windows.get_mut(&WindowType::About).unwrap();
-            window.try_update_localisation(&application.localisation, &application.environment)?;
-        }
-    }
-    */
     let size = application.session.settings.ui.about.size;
     let option = &application.session.settings.ui.about.position;
     let position = if option.is_none() {

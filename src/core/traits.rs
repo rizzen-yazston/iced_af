@@ -1,77 +1,139 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use super::{
-    application::{ApplicationMessage, WindowType},
-    error::ApplicationError,
+use crate::{
+    application::{
+        constants::{TAB_HEADER_SIZE, TAB_PADDING},
+        error::ApplicationError,
+        Message, WindowType,
+    },
+    core::{
+        error::CoreError,
+        localisation::{Localisation, StringCache},
+    },
+    iced_aw::widgets::sidebar::TabLabel,
 };
-use iced::{window, Command, Element, Renderer, Theme};
-use std::any::Any;
+use core::fmt::Debug;
+use i18n::utility::LanguageTag;
+use iced::{
+    alignment::{Horizontal, Vertical},
+    widget::{Column, Container, Text},
+    window, Task, Element, Length, Renderer, Theme,
+};
+//use iced_aw::sidebar::TabLabel;
+use std::{
+    any::Any,
+    rc::Rc as RefCount,
+};
 
-#[cfg(feature = "i18n")]
-use super::{environment::Environment, localisation::Localisation, session::Session};
-
-#[cfg(feature = "log")]
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-#[cfg(feature = "i18n")]
-use i18n::utility::TaggedString as LString;
-
-#[cfg(not(feature = "i18n"))]
-use std::string::String as LString;
+//
+// ----- Window state traits
+//
 
 /// Supertrait for Any
-pub trait AnyWindowTrait: Any + WindowTrait {}
-
-/// Trait for basic window methods.
-pub trait WindowTrait {
+pub trait AnyWindowTrait: Any + WindowTrait {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
 
-    fn title(&self) -> &LString;
+/// Trait for basic window methods.
+pub trait WindowTrait {
+    fn window_type(&self) -> WindowType;
+
+    fn title<'a>(&'a self, string_cache: &'a StringCache) -> &String;
 
     #[allow(unused_variables)]
     fn try_update(
         &mut self,
-        message: ApplicationMessage,
-    ) -> Result<Command<ApplicationMessage>, ApplicationError> {
-        Ok(Command::none())
+        message: Message,
+        string_cache: &StringCache,
+    ) -> Result<Task<Message>, ApplicationError> {
+        Ok(Task::none())
     }
 
-    fn view(&self, id: &window::Id) -> Element<'_, ApplicationMessage, Theme, Renderer>;
+    fn view<'a>(
+        &'a self,
+        id: window::Id,
+        localisation: &Localisation,
+        string_cache: &'a StringCache,
+    ) -> Element<'_, Message, Theme, Renderer>;
 
     fn scale_factor(&self) -> f64 {
         1.0
     }
 
-    fn parent(&self) -> &Option<WindowType>;
-
-    // Some windows don't have varying parent, thus does nothing.
-    #[allow(unused_variables)]
-    fn parent_add(&mut self, window_type: &WindowType) {}
-
-    // Some windows don't have varying parent, thus does nothing.
-    fn parent_remove(&mut self) -> Option<WindowType> {
-        None
+    fn reusable(&self) -> bool {
+        false
     }
 
-    // Some windows don't update their localisation.
-    #[cfg(feature = "i18n")]
+    fn global_disable(&self) -> bool {
+        false
+    }
+}
+
+//
+// ----- Localisation traits
+//
+
+/// Supertrait for Any
+pub trait AnyLocalisedTrait: Any + LocalisedTrait + Debug {
+    // Used to obtain a vec of strings, such as combo box selection list.
+    fn as_any(&self) -> &dyn Any;
+}
+
+/// Trait for localisations of the windows.
+pub trait LocalisedTrait {
     #[allow(unused_variables)]
-    fn try_update_localisation(
-        &mut self,
-        localisation: &Localisation,
-        environment: &Environment,
-        session: &Session,
-    ) -> Result<(), ApplicationError> {
+    fn try_update(&mut self, localisation: &Localisation) -> Result<(), CoreError> {
         Ok(())
     }
 
-    fn enable(&mut self);
+    fn title(&self) -> &String;
 
-    fn disable(&mut self);
+    fn string(&self, index: usize) -> &String;
 
-    fn is_enabled(&self) -> bool;
+    fn language_tag(&self) -> &RefCount<LanguageTag>;
+}
+
+//
+// ----- Tab traits
+//
+
+pub trait TabTrait {
+    fn title<'a>(&self, string_cache: &'a StringCache) -> String;
+
+    fn tab_label<'a>(&self, string_cache: &'a StringCache) -> TabLabel {
+        TabLabel::Text(self.title(string_cache))
+    }
+
+    fn view<'a>(
+        &'a self,
+        id: window::Id,
+        localisation: &Localisation,
+        string_cache: &'a StringCache,
+    ) -> Element<'_, Message, Theme, Renderer> {
+        let column = Column::new()
+            .spacing(20)
+            .push(Text::new(self.title(string_cache)).size(TAB_HEADER_SIZE))
+            .push(self.content(id, localisation, string_cache))
+            .align_x(iced::Alignment::Center);
+        Container::new(column)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Horizontal::Center)
+            .align_y(Vertical::Center)
+            .padding(TAB_PADDING)
+            .into()
+    }
+
+    fn content<'a>(
+        &'a self,
+        id: window::Id,
+        localisation: &Localisation,
+        string_cache: &'a StringCache,
+    ) -> Element<'_, Message, Theme, Renderer>;
 }

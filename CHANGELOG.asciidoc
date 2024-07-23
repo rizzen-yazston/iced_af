@@ -1,7 +1,17 @@
 = Changelog
 Rizzen Yazston
 
-== iced_af 0.3.0 (2024-03-??)
+== iced_af 0.4.0 (2024-??-??)
+
+WARNING: Major breaking changes resulting from using `iced` 0.13.0 and `iced_aw` 0.10.0.
+
+* Major redesign of the framework to implement the changes done in `iced` since release of 0.12.0, especially affecting the `multi_window` feature of `iced`.
+
+* Almost every file was affected by the replacement components of `iced` and redesign of the framework.
+
+* `i18n-rizzen-yazston` was also bumped to 0.9.2. 
+
+== iced_af 0.3.0 (2024-04-11)
 
 WARNING: Breaking changes resulting from 2 dependencies, or 3 dependencies if crate feature `i18n` is enabled.
 

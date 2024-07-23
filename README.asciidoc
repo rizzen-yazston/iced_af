@@ -13,25 +13,15 @@ The goal is to provide a starting application framework for developing native mu
 
 This project uses the {iced-url}[{iced}] library crates (including {iced_aw-url}[*iced_aw*] community crate for additional widgets) for the GUI of the application.
 
-In addition, the framework supports internationalisation as a feature option by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
-
-To support various applications, all the application's feature capabilities are gated with build feature options (see Features section). Features that are not used can be simply deleted for the application, thus simplifying the source code by reducing the need for `#[cfg(...)]` and `#[cfg(not()...)]` statements.
+In addition, the framework supports internationalisation by using the crate {i18n-url}[*i18n-rizzen-yazston*] and various crates of the {icu4x-url}[*ICU4X*] project, the main crate being {icu-url}[*icu*].
 
 == Features
 
 The following features are available:
 
-* `log`: To enable logging for the application, and inserts a log level setting in Preferences window,
-
 * `sync`: To use `sync::Arc` instead of `rc::Rc`, their respective variants.
 
-* `i18n`: To enable international support. The design allows for all scripts, though currently only supports top to down scripts, due to `icu` currently only has flow direction information for top to bottom scripts (with plans to expand to all scripts). Uses the latest `i18n` version 0.9.1, that added new features.
-
-* `persistent`: Specifies whether session data will be saved on exit, and restored at application launch. This feature is required if wanting applications settings to be persistent across usage.
-
-* `first_use`: To enable the simplified Preferences window to appear first on first time use to allow user to set specific preferences settings, before opening the application's main window. This feature automatically enables the `persistent` feature.
-
-* `clap`: Enabled command line support, for applications that like to have the ability to pass options/command/etc to the application. Note version used is 4.4.3, as 4.5 requires rustc version 0.74.
+* `iced_aw`: This is only used when there is a cargo cache issue as a result of using the `iced` master branch with the `iced_aw` main branch. It is simply a copy of the `iced_aw` components used by this project.
 
 In the `Cargo.toml` there is two `default` lines, one being commented out. One enables all the features, while the other enables none.
 
@@ -39,7 +29,7 @@ In the `Cargo.toml` there is two `default` lines, one being commented out. One e
 
 The application framework has the following capabilities:
 
-* If build with the `first_use` and `i18n` features for the application, the Preferences window will be displayed prompting the user to select the user interface language (currently using language tags while waiting for *display name* feature to be completed in ICU4X),
+* On first use the Preferences window will be displayed prompting the user to select the user interface language (currently using language tags while waiting for *display name* feature to be completed in ICU4X),
 
 * The following windows:
 
@@ -51,7 +41,9 @@ The application framework has the following capabilities:
 
 ** `Information`: a simple generic window to display a message to user,
 
-** `Main`: simply contains a menu bar,
+** `Default`: simply a main window containing a menu bar,
+
+** `Main`: simply a main window containing a menu bar,
 
 ** `About`: simply demonstration of an about window.
 
@@ -59,9 +51,9 @@ The application framework has the following capabilities:
 
 * Traps the window decoration close button, to handle certain state cases,
 
-* Windows are resizable and movable, and if build with `persistent` feature their final position and size is saved on application termination and restored when application is relaunched.
+* Windows are resizable and movable, and their final position and size is saved on application termination and restored when application is relaunched.
 
-* Supports handling of error `Result`s internally of the `update()` method and the 'Application::new()' method, using FatalError window to display uncaught errors.
+* Supports handling of error `Result`s internally of the `update()` method using FatalError window to display uncaught errors.
 
 * Localisation of text and errors that supports internationalisation. Two demonstration languages included for almost all text. Deliberately the text displayed in Main window does not support localisation for demonstration purposes.
 
@@ -75,9 +67,7 @@ As this project is a starting point for developing multi-windowed {iced} applica
 
 Before launching the `example` copy the `l10n` directory to where the directory where the binary resides to avoid a panic indicating missing localisation database.
 
-Edit the `lib.rs` in the project's root, to configure various application's `const`s to reflect the new project.
-
-As this is a mini application framework for creating multi-window applications, feel free to remove unwanted features, easy to spot with `#[cfg(...)]` statements and deleted the associated statement/expression. Or alternative leave the features as is and continue using the feature `#[cfg(...)]` statements for new windows and new components of existing windows, to allow easy switching to more advance features later on (such as international support, or suddenly requiring command line options).
+Edit the `src/application/constants.rs`, to configure various application's `const`s to reflect the new project.
 
 == Notes
 
@@ -85,49 +75,34 @@ As this is a mini application framework for creating multi-window applications, 
 
 * This still work in progress, thus the windows may look a bit wonky. Currently focused on functionality than appearances.
 
+* Components (such as logging, command processing, session persistence) that are not used can be simply deleted for the application, thus simplifying the source code. The localisation can be removed, by hard coding actual strings in the various localisation files found in `src/localisation/` directory, and altering the file `src/core/localisation.rs` to remove the dependency on `i18n-rizzen-yazston` crate.
+
 == Adding a new windows
 
 * In `src/window` directory pick a window that closely fits your new window layout structure, copy rust file with a new filename.
 
 * Make the required changes in the new window `.rs` file:
 
-** Such as renaming `???Localisation` struct, `???` struct, and `display_???` function, where *???* is the window abbreviation name. Adjust the content of these as required.
+** Adjust the content of `title()`, `view()`, `new()`/`try_new()`, `display` as required.
 
-** If required add a `???Message` enum, and `update_???` function, where *???* is internal window abbreviation name. See existing `preferences.rs` for an example.
-
-** Alter the contents of `try_new()`, `try_update()` and `view()`, and optionally adjust `parent_remove()`.
+** If required add a `Message` enum, and `update` function. See existing `preferences.rs` for an example.
 
 * In `window.rs` add the new filename.
 
-* In `core/session.rs` add entry for the window in `Ui` struct.
+* In `src/application/session.rs` add any other session data needed to be saved.
 
-* In `core/application`:
+* In `application/application.rs`:
 
 ** To `use crate::{ ... window::{` statement add the new window filename.
 
-** To `WindowType` add a new entry for the new window.
-
-** If new window has its own `Message` enum, add it to `ApplicationMessage` enum, to be able to pass messages to the new window's `try_update()` method.
+** If new window has its own `Message` enum, add it to `Message` enum, to be able to pass messages to the new window's `try_update()` method.
 
 ** To `try_update()` method, add match branch for new window, either directly to window's `try_update()` method, or if needing to do more logic outside of window's `try_update()` method, in the new window's rust file can add a `update_?` function, where ? is the window abbreviation. See other branches for examples.
 
-** To `resized()` and `moved()` methods add entries for the new window.
+* In `src/application/enums.rs` add entries to both `WindowType` for the window and `StringGroup` for the localisation.
 
 * If new window is accessible from the application's menu bar then add entry in `window/main/menu_bar.rs` and add match branch to `update_main()` function to handle the displaying of the new window.
 
-== Design process
+* In the `src/localisation/` directory, copy an existing string group file, rename and edit the content.
 
-Almost all the methods of the `i18n` library uses the `Result` type to be able to provide runtime errors that are catchable, where the developer of the application (or another library) can decide to ignore the error, display the error, or leave it uncaught to become a fatal error (application terminating). This is an intentional design of the `i18n` project.
-
-On the other hand the `iced` library does not support the `Result` type as the return type for the `new()`, `update()` and `view()` methods. The `Result` of various `i18n` methods needs to be caught and handled within the application's main `new()` and `update()` methods.
-
-A new update method is created called `try_update()`, which contains all the logic that would have been in the application's `update()` method, and returns a `Result` type. This `try_update()` method is called within the `update()`, and if the result is the `Ok()` variant, then the `Command` enum is returned to the `iced` caller. However if the result is the `Err()` variant, then the `FatalError` state is created containing the error, and the resulting window spawn command is returned to the `iced` caller. The fatal error window, that is displayed, is a special type of window, in that it does not allow the `Err()` variant to be returned. Any error that occurs within the fatal error window's `try_update()` method is caught and handled, thus only the `Ok()` variant is returned containing a batch command to close all windows. The benefit of displaying the runtime fatal error before application closes, is when the application is not launched from a console where errors are normally displayed, and if logging is not supported to record the error in a logging system (usually files).
-
-Similar approach is used for the `new()` method, where the actual logic is placed in a new method called `try_new()`. If the result is an error, the application terminates with a `panic!()`, that contains a simple formatted message of the error. Otherwise the contents of the `Ok()` variant is returned.
-
-There is no equivalent `try_view()` method for `view()`, as no error must not occur. The `view()` method must only read the window state, and build the window accordingly. The window state at the time of creation must contain all the data required to be displayed, without requiring any form of formatting. The `view()` only allows the placing order to be altered, by reading fields of the window state. If the feature `i18n` is enabled, the localisation of text only takes place at the creation of the window state, or when updating the window state within the `try_update()` and `try_update_localisation()` methods of the window. However the application's main `view()` method does trap two possible errors when retrieving the window's actual `view()`, in this case the contents of the main window is replaced with an error message.
-
-As see from above, there are references of the application's main `try_update()` and `view()` methods calling the window's actual `try_update()` and `view()`. This approach of separating the update and view logic into their own methods for each window, was due to that the match statements became unyielding large, making it difficult to follow the logic of the individual windows. To do this the `WindowType` and `WindowTrait` (along with the `AnyWindowTrait` to be able to downcast from `Any`) was introduced to provide an uniform way of calling windows actual `try_update()` and `view()` methods. This also allowed the main `try_update` and `view()` methods to be greatly simplified.
-Also using an enum for the `WindowType`, it allows the possibility of including a window number (`usize`) or identifier as a `String` to be used when the are multiple windows of the same type. In the window's `try_update()` and `view()` the value of the enum variant is used to make changes to the specific window of the `WindowType` variant.
-
-The `Message` enum is also broken down into separate `Message` enums, one for each window if the application main `Message` enum and `try_update()` method does not contain the suitable message handling. 
+* In `src/localisation.rs` add the new filename.

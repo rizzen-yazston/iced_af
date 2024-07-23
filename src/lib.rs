@@ -3,18 +3,14 @@
 
 #![allow(dead_code)]
 
+pub mod application;
 pub mod core;
+pub mod localisation;
 pub mod widget;
 pub mod window;
 
-// Edit the following constants to reflect the project:
-
-pub(crate) const VENDOR: &str = "rizzen"; // Always lower case ASCII letter [a-z].
-pub(crate) const APPLICATION_NAME: &str = "iced Application Framework";
-pub(crate) const APPLICATION_NAME_SHORT: &str = "iced_af";
-pub(crate) const AUTHORS: &str = env!("CARGO_PKG_AUTHORS"); // Change if more detailed this is required.
-
-// These constants require no editing, mainly derived from the build environment:
-
-pub(crate) const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
-pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
+// This is only used when there is a cargo cache issue as a result of using the `iced`
+// master branch with the `iced_aw` main branch. It is simply a copy of the `iced_aw`
+// components used by this project.
+#[cfg(feature = "iced_aw")]
+pub mod iced_aw; 

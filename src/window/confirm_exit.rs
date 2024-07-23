@@ -2,223 +2,31 @@
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
 use crate::{
+    application::{self, ApplicationError, WindowType, StringGroup},
     core::{
-        application::{ApplicationMessage, ApplicationThread, WindowType},
-        error::ApplicationError,
+        localisation::{Localisation, StringCache},
         traits::{AnyWindowTrait, WindowTrait},
     },
-    APPLICATION_NAME_SHORT,
+    localisation::confirm_exit::{Index, Strings},
 };
 use iced::{
-    widget::{button, column, container, row, text},
-    window, Alignment, Command, Element, Length, Point, Size,
+    widget::{button, column, row, text},
+    window, Alignment, Task, Element, Length,
 };
 use std::any::Any;
 
-#[cfg(feature = "i18n")]
-use crate::core::{
-    environment::Environment,
-    localisation::{Localisation, ScriptData},
-    session::Session,
-};
-
-#[cfg(feature = "i18n")]
-use i18n::utility::{LanguageTag, PlaceholderValue, TaggedString as LString};
-
-#[cfg(not(feature = "i18n"))]
-use std::string::String as LString;
-
-#[cfg(feature = "log")]
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-#[cfg(feature = "i18n")]
-use std::collections::HashMap;
+pub struct State {}
 
-use std::collections::hash_map;
-
-#[cfg(all(feature = "i18n", feature = "sync"))]
-use std::sync::Arc as RefCount;
-
-#[cfg(all(feature = "i18n", not(feature = "sync")))]
-use std::rc::Rc as RefCount;
-
-// Constants
-//const SIZE_MIN: ( f32, f32 ) = ( 150f32, 100f32 );
-pub const SIZE_DEFAULT: (f32, f32) = (320f32, 120f32);
-const RESIZABLE: bool = false;
-//const MAXIMISE: bool = false;
-
-pub struct ConfirmExitLocalisation {
-    #[cfg(feature = "i18n")]
-    language: RefCount<LanguageTag>,
-    #[cfg(feature = "i18n")]
-    script_data: ScriptData,
-
-    // Strings
-    title: LString,
-    confirm_exit: LString,
-    exit: LString,
-    cancel: LString,
-}
-
-impl ConfirmExitLocalisation {
-    pub fn try_new(
-        #[cfg(feature = "i18n")] localisation: &Localisation,
-    ) -> Result<Self, ApplicationError> {
-        #[cfg(feature = "i18n")]
-        let language = localisation.localiser().default_language();
-
-        #[cfg(feature = "i18n")]
-        let language_identifier = localisation
-            .localiser()
-            .language_tag_registry()
-            .identifier(language.as_str())?;
-
-        #[cfg(feature = "i18n")]
-        let title = {
-            #[cfg(target_os = "macos")]
-            let name = localisation
-                .localiser()
-                .literal_with_defaults("application", "confirm_quit")?;
-
-            #[cfg(not(target_os = "macos"))]
-            let name = localisation
-                .localiser()
-                .literal_with_defaults("application", "confirm_exit")?;
-
-            let mut values = HashMap::<String, PlaceholderValue>::new();
-            values.insert(
-                "application".to_string(),
-                PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
-            );
-            values.insert("window".to_string(), PlaceholderValue::TaggedString(name));
-            localisation.localiser().format_with_defaults(
-                "application",
-                "window_title_format",
-                &values,
-            )?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let title = {
-            #[cfg(target_os = "macos")]
-            let name = "Confirm quit".to_string();
-
-            #[cfg(not(target_os = "macos"))]
-            let name = "Confirm exit".to_string();
-
-            format!("{} - {}", APPLICATION_NAME_SHORT, name,)
-        };
-
-        #[cfg(feature = "i18n")]
-        let confirm_exit = {
-            #[cfg(target_os = "macos")]
-            {
-                let mut values = HashMap::<String, PlaceholderValue>::new();
-                values.insert(
-                    "short_name".to_string(),
-                    PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
-                );
-                localisation.localiser().format_with_defaults(
-                    "application",
-                    "confirm_quit_question",
-                    &values,
-                )?
-            }
-
-            #[cfg(not(target_os = "macos"))]
-            localisation
-                .localiser()
-                .literal_with_defaults("application", "confirm_exit_question")?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let confirm_exit = {
-            #[cfg(target_os = "macos")]
-            format!("Are you sure you want to quit {}", APPLICATION_NAME_SHORT);
-
-            #[cfg(not(target_os = "macos"))]
-            "Are you sure you want to exit?".to_string()
-        };
-
-        #[cfg(feature = "i18n")]
-        let exit = {
-            #[cfg(target_os = "macos")]
-            {
-                let mut values = HashMap::<String, PlaceholderValue>::new();
-                values.insert(
-                    "short_name".to_string(),
-                    PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
-                );
-                localisation.localiser().format_with_defaults(
-                    "application",
-                    "quit_macos",
-                    &values,
-                )?
-            }
-
-            #[cfg(not(target_os = "macos"))]
-            localisation
-                .localiser()
-                .literal_with_defaults("word", "exit_i")?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let exit = {
-            #[cfg(target_os = "macos")]
-            format!("Quit {}", APPLICATION_NAME_SHORT);
-
-            #[cfg(not(target_os = "macos"))]
-            "Exit".to_string()
-        };
-
-        #[cfg(feature = "i18n")]
-        let cancel = localisation
-            .localiser()
-            .literal_with_defaults("word", "cancel_i")?;
-
-        #[cfg(not(feature = "i18n"))]
-        let cancel = "Cancel".to_string();
-
-        Ok(ConfirmExitLocalisation {
-            #[cfg(feature = "i18n")]
-            language,
-            #[cfg(feature = "i18n")]
-            script_data: ScriptData::new(localisation, &language_identifier),
-            title,
-            confirm_exit,
-            exit,
-            cancel,
-        })
+impl State {
+    pub fn new() -> Self {
+        State {}
     }
 }
 
-pub struct ConfirmExit {
-    enabled: bool,
-    parent: Option<WindowType>,
-    localisation: ConfirmExitLocalisation,
-}
-
-impl ConfirmExit {
-    pub fn try_new(
-        #[cfg(feature = "i18n")] localisation: &Localisation,
-    ) -> Result<Self, ApplicationError> {
-        let localisation = ConfirmExitLocalisation::try_new(
-            #[cfg(feature = "i18n")]
-            localisation,
-        )?;
-        Ok(ConfirmExit {
-            enabled: true,
-            parent: Some(WindowType::Main),
-            localisation,
-        })
-    }
-}
-
-impl AnyWindowTrait for ConfirmExit {}
-
-impl WindowTrait for ConfirmExit {
+impl AnyWindowTrait for State {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -226,137 +34,95 @@ impl WindowTrait for ConfirmExit {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+}
 
-    fn title(&self) -> &LString {
-        &self.localisation.title
+impl WindowTrait for State {
+    fn window_type(&self) -> WindowType {
+        WindowType::ConfirmExit
     }
 
-    fn view(&self, id: &window::Id) -> Element<ApplicationMessage> {
-        let mut content: Vec<Element<ApplicationMessage>> = vec![
+    fn title<'a>(&'a self, string_cache: &'a StringCache) -> &String {
+        let strings = string_cache.get(&StringGroup::ConfirmExit).unwrap();
+        strings.title()
+    }
+
+    fn view<'a>(
+        &'a self,
+        id: window::Id,
+        localisation: &Localisation,
+        string_cache: &'a StringCache,
+    ) -> Element<application::Message> {
+        let strings = string_cache.get(&StringGroup::ConfirmExit).unwrap();
+        let mut content: Vec<Element<application::Message>> = vec![
             // Message
-            column![text(self.localisation.confirm_exit.as_str())]
+            column![text(strings.string(Index::ConfirmExit as usize).as_str())]
                 .width(Length::Fill)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .into(),
             text(" ").height(Length::Fill).into(), // Paragraph separation
         ];
 
         // Buttons
         #[allow(unused_mut)]
-        let mut buttons: Vec<Element<ApplicationMessage>> = vec![
-            button(text(self.localisation.exit.as_str()))
+        let mut buttons: Vec<Element<application::Message>> = vec![
+            button(text(strings.string(Index::Exit as usize).as_str()))
                 .padding([5, 10])
-                .on_press(ApplicationMessage::Exit)
+                .on_press(application::Message::Exit)
                 .into(),
-            button(text(self.localisation.cancel.as_str()))
+            button(text(strings.string(Index::Cancel as usize).as_str()))
                 .padding([5, 10])
-                .on_press(ApplicationMessage::Close(*id))
+                .on_press(application::Message::Close(id))
                 .into(),
         ];
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_words {
+        if localisation.layout_data().reverse_words {
             buttons.reverse();
         }
-
         content.push(
             column![row(buttons).spacing(10)]
                 .width(Length::Fill)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .into(),
         );
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_lines {
+        if localisation.layout_data().reverse_lines {
             content.reverse();
         }
-
-        container(column(content).width(Length::Fill))
+        column(content)
+            .width(Length::Fill)
             .height(Length::Fill)
             .padding(20)
             .into()
     }
 
-    fn parent(&self) -> &Option<WindowType> {
-        &self.parent
+    fn reusable(&self) -> bool {
+        true
     }
 
-    fn parent_remove(&mut self) -> Option<WindowType> {
-        self.parent.clone() // Always WindowType::Main, thus just faking remove.
-    }
-
-    #[cfg(feature = "i18n")]
-    fn try_update_localisation(
-        &mut self,
-        localisation: &Localisation,
-        _environment: &Environment,
-        _session: &Session,
-    ) -> Result<(), ApplicationError> {
-        if self.localisation.language != localisation.localiser().default_language() {
-            #[cfg(feature = "log")]
-            info!("Updating localisation.");
-
-            self.localisation = ConfirmExitLocalisation::try_new(localisation)?;
-        }
-        Ok(())
-    }
-
-    fn enable(&mut self) {
-        self.enabled = true;
-    }
-
-    fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-    fn is_enabled(&self) -> bool {
-        self.enabled
+    fn global_disable(&self) -> bool {
+        true
     }
 }
 
-pub fn display_confirm_exit(
-    application: &mut ApplicationThread,
-    #[cfg(feature = "log")] message: &str,
-) -> Result<Command<ApplicationMessage>, ApplicationError> {
-    #[cfg(feature = "log")]
-    info!("{}", message);
-
-    if let hash_map::Entry::Vacant(e) = application.windows.entry(WindowType::ConfirmExit) {
-        e.insert(Box::new(ConfirmExit::try_new(
-            #[cfg(feature = "i18n")]
-            &application.localisation,
-        )?));
-    } else {
-        #[cfg(feature = "i18n")]
-        {
-            let window = application
-                .windows
-                .get_mut(&WindowType::ConfirmExit)
-                .unwrap();
-            window.try_update_localisation(
-                &application.localisation,
-                &application.environment,
-                &application.session,
-            )?;
-        }
+pub fn display(
+    application: &mut application::State,
+    parent: window::Id,
+    //message: &str,
+) -> Result<Task<application::Message>, ApplicationError> {
+    //debug!("{}", message);
+//
+    if !application
+        .string_cache
+        .exists(&StringGroup::ConfirmExit)
+    {
+        application.string_cache.insert(
+            StringGroup::ConfirmExit,
+            Box::new(Strings::try_new(&application.localisation)?),
+        );
     }
-    let size = application.session.settings.ui.confirm_exit.size;
-    let option = &application.session.settings.ui.confirm_exit.position;
-    let position = if option.is_none() {
-        window::Position::Centered
-    } else {
-        let value = option.as_ref().unwrap();
-        window::Position::Specific(Point {
-            x: value.0,
-            y: value.1,
-        })
+    let state: Box<dyn AnyWindowTrait> = match application.manager.use_reusable(WindowType::ConfirmExit) {
+        None => Box::new(State::new()),
+        Some(value) => value,
     };
-    let settings = window::Settings {
-        size: Size::new(size.0, size.1),
-        resizable: RESIZABLE,
-        position,
-        exit_on_close_request: false,
-        ..Default::default()
-    };
-    application.spawn_with_disable(settings, &WindowType::ConfirmExit, &WindowType::Main)
+    Ok(application
+        .manager
+        .try_spawn(&mut application.session, state, parent)?)
 }

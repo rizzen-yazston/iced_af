@@ -1,19 +1,22 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use super::session::LogLevels;
+//! TODO: figure out how to eliminate duplicate entries.
+
+use crate::application::{
+    constants,
+    session::LogLevels,
+};
 use core::fmt::{Display, Formatter, Result as FormatterResult};
 use log::LevelFilter;
 use log4rs::{
     append::console::ConsoleAppender,
-    config::{Appender, Logger as LogLogger, Root},
+    config::{Appender, Logger, Root},
     Config, Handle,
 };
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
-
-#[cfg(feature = "persistent")]
 use serde::{Deserialize, Serialize};
 
 /// Create a new application logger
@@ -24,7 +27,7 @@ pub fn new_logger(default: LogLevel) -> Handle {
     } else {
         default
     };
-    println!("Initialise: Log level set to ‘{}’", default);
+    println!("Initialise: Log level set to ‘{}’", default); // Keep this line
     let stdout = ConsoleAppender::builder().build();
     log4rs::init_config(
         Config::builder()
@@ -63,89 +66,89 @@ pub fn update_logger(handle: &mut Handle, log_levels: &LogLevels) {
             .appender(Appender::builder().build("stdout", Box::new(stdout)))
             // the application itself
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
-                    .build("iced_af", application.to_level_filter()),
+                    .build("iced_af_rizzen_yazston", application.to_level_filter()),
             )
             // iced components (iced depends on many crates)
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("iced_wgpu", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("wgpu_core", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("iced_graphics", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("cosmic_text", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("calloop", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("naga", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("fontdb", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("wgpu_hal", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("winit", iced.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("iced_winit", iced.to_level_filter()),
             )
             // i18n components (i18n has a few crates)
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n", i18n.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n_lexer", i18n.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n_localiser", i18n.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n_provider", i18n.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n_provider_sqlite3", i18n.to_level_filter()),
             )
             .logger(
-                LogLogger::builder()
+                Logger::builder()
                     .appender("stdout")
                     .build("i18n_utility", i18n.to_level_filter()),
             )
@@ -159,8 +162,7 @@ pub fn update_logger(handle: &mut Handle, log_levels: &LogLevels) {
     println!("Log levels has been updated.");
 }
 
-#[cfg_attr(feature = "persistent", derive(Deserialize, Serialize))]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Hash, Deserialize, Serialize)]
 pub enum LogLevel {
     #[default]
     Default,
@@ -176,7 +178,7 @@ impl LogLevel {
     /// Convert `LogLevel` to [`log::LevelFilter`].
     pub fn to_level_filter(&self) -> LevelFilter {
         match self {
-            LogLevel::Default => LevelFilter::Error, // <--- Set the application default here
+            LogLevel::Default => constants::DEFAULT_LOG_LEVEL_FILTER,
             LogLevel::Off => LevelFilter::Off,
             LogLevel::Error => LevelFilter::Error,
             LogLevel::Warn => LevelFilter::Warn,

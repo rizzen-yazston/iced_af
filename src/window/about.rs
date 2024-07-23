@@ -2,235 +2,46 @@
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
 use crate::{
+    application::{self, ApplicationError, WindowType,
+        constants::{APPLICATION_NAME, AUTHORS, VERSION},
+        StringGroup,
+    },
     core::{
-        application::{ApplicationMessage, ApplicationThread, WindowType},
-        error::ApplicationError,
+        localisation::{Localisation, StringCache},
         traits::{AnyWindowTrait, WindowTrait},
     },
-    APPLICATION_NAME, APPLICATION_NAME_SHORT, AUTHORS, VERSION,
+    localisation::about::{Index, Strings},
 };
 use iced::{
-    widget::{button, column, container, row, scrollable, text},
-    window, Alignment, Command, Element, Length, Point, Size,
+    widget::{button, column, row, scrollable, text},
+    window, Alignment, Task, Element, Length,
 };
 use std::any::Any;
-
-#[cfg(feature = "i18n")]
-use crate::core::{
-    environment::Environment,
-    localisation::{
-        Localisation,
-        ScriptData,
-        //Direction, //used for layout flow direction test
-    },
-    session::Session,
-};
-
-#[cfg(feature = "i18n")]
-use i18n::utility::{LanguageTag, PlaceholderValue, TaggedString as LString};
-
-#[cfg(not(feature = "i18n"))]
-use std::string::String as LString;
-
-#[cfg(feature = "log")]
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
-#[cfg(feature = "i18n")]
-use std::collections::HashMap;
-
-use std::collections::hash_map;
-
-#[cfg(all(feature = "i18n", feature = "sync"))]
-use std::sync::Arc as RefCount;
-
-#[cfg(all(feature = "i18n", not(feature = "sync")))]
-use std::rc::Rc as RefCount;
-
-// Constants
-//const SIZE_MIN: ( f32, f32 ) = ( 150f32, 100f32 );
-pub const SIZE_DEFAULT: (f32, f32) = (300f32, 250f32);
-const RESIZABLE: bool = false;
-//const MAXIMISE: bool = false;
-
-pub struct AboutLocalisation {
-    #[cfg(feature = "i18n")]
-    language: RefCount<LanguageTag>,
-    #[cfg(feature = "i18n")]
-    script_data: ScriptData,
-
-    // Strings
-    title: LString,
-    contributors: LString,
-    ok: LString,
-    #[cfg(feature = "i18n")]
-    localisation_contributors: LString,
+pub struct State {
+    contributors: Vec<String>,
+    localisation_contributors: Vec<String>,
 }
 
-impl AboutLocalisation {
-    pub fn try_new(
-        #[cfg(feature = "i18n")] localisation: &Localisation,
-    ) -> Result<Self, ApplicationError> {
-        #[cfg(feature = "i18n")]
-        let language = localisation.localiser().default_language();
-
-        #[cfg(feature = "i18n")]
-        let locale = localisation
-            .localiser()
-            .language_tag_registry()
-            .identifier(language.as_str())?;
-
-        #[cfg(feature = "i18n")]
-        let title = {
-            let mut values = HashMap::<String, PlaceholderValue>::new();
-            values.insert(
-                "application".to_string(),
-                PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
-            );
-            values.insert(
-                "window".to_string(),
-                PlaceholderValue::TaggedString(
-                    localisation
-                        .localiser()
-                        .literal_with_defaults("word", "about_i")?,
-                ),
-            );
-            localisation.localiser().format_with_defaults(
-                "application",
-                "window_title_format",
-                &values,
-            )?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let title = format!("{} - About", APPLICATION_NAME_SHORT);
-
-        #[cfg(feature = "i18n")]
-        let contributors = {
-            let mut values = HashMap::<String, PlaceholderValue>::new();
-            values.insert(
-                "phrase".to_string(),
-                PlaceholderValue::TaggedString(
-                    localisation
-                        .localiser()
-                        .literal_with_defaults("word", "contributors_ip")?,
-                ),
-            );
-            localisation.localiser().format_with_defaults(
-                "application",
-                "add_colon_format",
-                &values,
-            )?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let contributors = "Contributors:".to_string();
-
-        #[cfg(feature = "i18n")]
-        let localisation_contributors = {
-            let mut values = HashMap::<String, PlaceholderValue>::new();
-            values.insert(
-                "phrase".to_string(),
-                PlaceholderValue::TaggedString(
-                    localisation
-                        .localiser()
-                        .literal_with_defaults("application", "localisation_contributors")?,
-                ),
-            );
-            localisation.localiser().format_with_defaults(
-                "application",
-                "add_colon_format",
-                &values,
-            )?
-        };
-
-        #[cfg(feature = "i18n")]
-        let ok = {
-            localisation
-                .localiser()
-                .literal_with_defaults("word", "ok_i")?
-        };
-
-        #[cfg(not(feature = "i18n"))]
-        let ok = "OK".to_string();
-
-        Ok(AboutLocalisation {
-            #[cfg(feature = "i18n")]
-            language,
-            /* just here to test other script direction flow of objects. text is only partially supported in iced.
-            #[cfg( feature = "i18n" )] script_data: ScriptData { //faking directions to test layout
-                flow_line: Direction::BottomToTop,
-                flow_word: Direction::RightToLeft,
-                reverse_lines: true,
-                reverse_words: true,
-                align_lines_start: Alignment::End,
-                align_lines_end: Alignment::Start,
-                align_words_start: Alignment::End,
-                align_words_end: Alignment::Start,
-            },
-            */
-            #[cfg(feature = "i18n")]
-            script_data: ScriptData::new(localisation, &locale),
-            title,
+impl State {
+    pub fn try_new(localisation: &Localisation) -> Result<Self, ApplicationError> {
+        let mut split = AUTHORS.split(',');
+        let mut contributors = Vec::<String>::new();
+        while let Some(author) = split.next() {
+            contributors.push(author.trim().to_string());
+        }
+        let details = localisation.repository_details()?;
+        let localisation_contributors = details.contributors.clone();
+        Ok(State {
             contributors,
-            ok,
-            #[cfg(feature = "i18n")]
             localisation_contributors,
         })
     }
 }
 
-pub struct About {
-    enabled: bool,
-    parent: Option<WindowType>,
-    localisation: AboutLocalisation,
-    contributors: Vec<String>,
-    #[cfg(feature = "i18n")]
-    localisation_contributors: Vec<String>,
-}
-
-impl About {
-    pub fn try_new(
-        #[cfg(feature = "i18n")] localisation: &Localisation,
-    ) -> Result<Self, ApplicationError> {
-        let about_localisation = AboutLocalisation::try_new(
-            #[cfg(feature = "i18n")]
-            localisation,
-        )?;
-        let split = AUTHORS.split(',');
-        let mut contributors = Vec::<String>::new();
-        for author in split {
-            contributors.push(author.trim().to_string());
-        }
-        #[cfg(feature = "i18n")]
-        {
-            let details = localisation
-                .localiser()
-                .localisation_provider()
-                .repository_details()?;
-            let localisation_contributors = details.contributors.clone();
-            Ok(About {
-                enabled: true,
-                parent: Some(WindowType::Main),
-                localisation: about_localisation,
-                contributors,
-                localisation_contributors,
-            })
-        }
-
-        #[cfg(not(feature = "i18n"))]
-        Ok(About {
-            enabled: true,
-            parent: Some(WindowType::Main),
-            localisation: about_localisation,
-            contributors,
-        })
-    }
-}
-
-impl AnyWindowTrait for About {}
-
-impl WindowTrait for About {
+impl AnyWindowTrait for State {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -238,105 +49,98 @@ impl WindowTrait for About {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+}
 
-    fn title(&self) -> &LString {
-        &self.localisation.title
+impl WindowTrait for State {
+    fn window_type(&self) -> WindowType {
+        WindowType::About
     }
 
-    fn view(&self, id: &window::Id) -> Element<ApplicationMessage> {
-        #[cfg(feature = "i18n")]
-        let align_start = self.localisation.script_data.align_words_start;
+    fn title<'a>(&'a self, string_cache: &'a StringCache) -> &String {
+        let strings = string_cache.get(&StringGroup::About).unwrap();
+        strings.title()
+    }
 
-        #[cfg(not(feature = "i18n"))]
-        let align_start = Alignment::Start;
-
-        let mut content: Vec<Element<ApplicationMessage>> =
-            Vec::<Element<ApplicationMessage>>::new();
+    fn view<'a>(
+        &'a self,
+        id: window::Id,
+        localisation: &Localisation,
+        string_cache: &'a StringCache,
+    ) -> Element<application::Message> {
+        let align_start = localisation.layout_data().align_words_start;
+        let reverse_words = localisation.layout_data().reverse_words;
+        let reverse_lines = localisation.layout_data().reverse_lines;
+        let strings = string_cache.get(&StringGroup::About).unwrap();
+        let mut content: Vec<Element<application::Message>> =
+            Vec::<Element<application::Message>>::new();
 
         // Header
         #[allow(unused_mut)]
-        let mut header: Vec<Element<ApplicationMessage>> =
+        let mut header: Vec<Element<application::Message>> =
             vec![APPLICATION_NAME.into(), VERSION.into()];
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_lines {
+        if reverse_lines {
             header.reverse();
         }
-
         content.push(
             column(header)
                 .width(Length::Fill)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .into(),
         );
 
         // Body - scrollable
-        let mut body: Vec<Element<ApplicationMessage>> = Vec::<Element<ApplicationMessage>>::new();
-
-        let mut contributors: Vec<Element<ApplicationMessage>> =
-            Vec::<Element<ApplicationMessage>>::new();
+        let mut body: Vec<Element<application::Message>> = Vec::<Element<application::Message>>::new();
+        let mut contributors: Vec<Element<application::Message>> =
+            Vec::<Element<application::Message>>::new();
         let iterator = self.contributors.iter();
         for author in iterator {
             #[allow(unused_mut)]
-            let mut contributor: Vec<Element<ApplicationMessage>> =
+            let mut contributor: Vec<Element<application::Message>> =
                 vec![text("  ").into(), text(author.clone()).into()];
-
-            #[cfg(feature = "i18n")]
-            if self.localisation.script_data.reverse_words {
+            if reverse_words {
                 contributor.reverse();
             }
-
             contributors.push(row(contributor).into());
         }
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_lines {
+        if reverse_lines {
             contributors.reverse();
         }
-
-        body.push(text(self.localisation.contributors.as_str()).into());
+        body.push(text(strings.string(Index::Contributors as usize)).into());
         body.push(
             column(contributors)
                 .width(Length::Fill)
-                .align_items(align_start)
+                .align_x(align_start)
                 .into(),
         );
-
-        #[cfg(feature = "i18n")]
-        {
-            let mut localisations: Vec<Element<ApplicationMessage>> =
-                Vec::<Element<ApplicationMessage>>::new();
-            let iterator = self.localisation_contributors.iter();
-            for language in iterator {
-                let mut contributor: Vec<Element<ApplicationMessage>> = vec![
-                    text("  ").into(), // Indentation space
-                    text(language.clone()).into(),
-                ];
-                if self.localisation.script_data.reverse_words {
-                    contributor.reverse();
-                }
-                localisations.push(row(contributor).into());
+        let mut localisations: Vec<Element<application::Message>> =
+            Vec::<Element<application::Message>>::new();
+        let iterator = self.localisation_contributors.iter();
+        for language in iterator {
+            let mut contributor: Vec<Element<application::Message>> = vec![
+                text("  ").into(), // Indentation space
+                text(language.clone()).into(),
+            ];
+            if reverse_words {
+                contributor.reverse();
             }
-            if self.localisation.script_data.reverse_lines {
-                localisations.reverse();
-            }
-            body.push(" ".into()); // Paragraph separation
-            body.push(text(self.localisation.localisation_contributors.as_str()).into());
-            body.push(
-                column(localisations)
-                    .width(Length::Fill)
-                    .align_items(align_start)
-                    .into(),
-            );
+            localisations.push(row(contributor).into());
         }
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_lines {
+        if reverse_lines {
+            localisations.reverse();
+        }
+        body.push(" ".into()); // Paragraph separation
+        body.push(text(strings.string(Index::Localisation as usize)).into());
+        body.push(
+            column(localisations)
+                .width(Length::Fill)
+                .align_x(align_start)
+                .into(),
+        );
+        if reverse_lines {
             body.reverse();
         }
-
         content.push(
-            scrollable(column(body).width(Length::Fill).align_items(align_start))
+            scrollable(column(body).width(Length::Fill).align_x(align_start))
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into(),
@@ -345,97 +149,47 @@ impl WindowTrait for About {
 
         // OK button
         content.push(
-            column![button(text(self.localisation.ok.as_str()))
+            column![button(text(strings.string(Index::Ok as usize)))
                 .padding([5, 10])
-                .on_press(ApplicationMessage::Close(*id))]
+                .on_press(application::Message::Close(id))]
             .width(Length::Fill)
-            .align_items(Alignment::Center)
+            .align_x(Alignment::Center)
             .into(),
         );
-
-        #[cfg(feature = "i18n")]
-        if self.localisation.script_data.reverse_lines {
+        if reverse_lines {
             content.reverse();
         }
-
-        container(column(content).width(Length::Fill))
+        column(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .padding(2)
             .into()
     }
 
-    fn parent(&self) -> &Option<WindowType> {
-        &self.parent
+    fn reusable(&self) -> bool {
+        true
     }
 
-    fn parent_remove(&mut self) -> Option<WindowType> {
-        self.parent.clone() // Always WindowType::Main, thus just faking remove.
-    }
-
-    #[cfg(feature = "i18n")]
-    fn try_update_localisation(
-        &mut self,
-        localisation: &Localisation,
-        _environment: &Environment,
-        _session: &Session,
-    ) -> Result<(), ApplicationError> {
-        if self.localisation.language != localisation.localiser().default_language() {
-            #[cfg(feature = "log")]
-            info!("Updating localisation.");
-
-            self.localisation = AboutLocalisation::try_new(localisation)?;
-        }
-        Ok(())
-    }
-
-    fn enable(&mut self) {
-        self.enabled = true;
-    }
-
-    fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-    fn is_enabled(&self) -> bool {
-        self.enabled
+    fn global_disable(&self) -> bool {
+        true
     }
 }
 
-pub fn display_about(
-    application: &mut ApplicationThread,
-) -> Result<Command<ApplicationMessage>, ApplicationError> {
-    if let hash_map::Entry::Vacant(e) = application.windows.entry(WindowType::About) {
-        e.insert(Box::new(About::try_new(
-            #[cfg(feature = "i18n")]
-            &application.localisation,
-        )?));
-    } else {
-        #[cfg(feature = "i18n")]
-        {
-            let window = application.windows.get_mut(&WindowType::About).unwrap();
-            window.try_update_localisation(
-                &application.localisation,
-                &application.environment,
-                &application.session,
-            )?;
-        }
+pub fn display(
+    application: &mut application::State,
+    parent: window::Id,
+) -> Result<Task<application::Message>, ApplicationError> {
+    if !application.string_cache.exists(&StringGroup::About) {
+        application.string_cache.insert(
+            StringGroup::About,
+            Box::new(Strings::try_new(&application.localisation)?),
+        );
     }
-    let size = application.session.settings.ui.about.size;
-    let option = &application.session.settings.ui.about.position;
-    let position = if option.is_none() {
-        window::Position::Centered
-    } else {
-        let value = option.as_ref().unwrap();
-        window::Position::Specific(Point {
-            x: value.0,
-            y: value.1,
-        })
+    let state: Box<dyn AnyWindowTrait> = match application.manager.use_reusable(WindowType::About) {
+        None => Box::new(State::try_new(&application.localisation)?),
+        Some(value) => value,
     };
-    let settings = window::Settings {
-        size: Size::new(size.0, size.1),
-        resizable: RESIZABLE,
-        position,
-        exit_on_close_request: false,
-        ..Default::default()
-    };
-    application.spawn_with_disable(settings, &WindowType::About, &WindowType::Main)
+    Ok(application
+        .manager
+        .try_spawn(&mut application.session, state, parent)?)
 }

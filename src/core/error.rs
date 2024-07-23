@@ -1,12 +1,12 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use super::application::WindowType;
-use core::fmt::{Display, Formatter, Result};
-use iced::window;
-use std::{error::Error, fmt::Debug, io::Error as IoError, path::PathBuf};
+//! All the core errors of the mini application framework.
+//!
+//! Add new errors to `ApplicationError` in the `src/application/error.rs` file.
 
-#[cfg(feature = "i18n")]
+use crate::application::WindowType;
+use core::fmt::{Display, Formatter, Result};
 use i18n::{
     lexer::IcuError,
     localiser::LocaliserError,
@@ -17,53 +17,51 @@ use i18n::{
         RegistryError,
     },
 };
-
-#[cfg(feature = "persistent")]
+use iced::window;
+use rusqlite::Error as Sqlite3Error;
+use std::{error::Error, fmt::Debug, io::Error as IoError, path::PathBuf};
 use ron::error::{Error as RonError, SpannedError};
-
-#[cfg(feature = "persistent")]
 use std::collections::HashMap;
+
+#[cfg(not(feature = "sync"))]
+use std::rc::Rc as RefCount;
+
+#[cfg(feature = "sync")]
+#[cfg(target_has_atomic = "ptr")]
+use std::sync::Arc as RefCount;
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum ApplicationError {
-    #[cfg(feature = "persistent")]
+pub enum CoreError {
     RonSpannedError(SpannedError),
-    #[cfg(feature = "persistent")]
     RonError(RonError),
-    #[cfg(feature = "i18n")]
     LanguageTagRegistry(RegistryError),
-    #[cfg(feature = "i18n")]
     Localiser(LocaliserError),
-    #[cfg(feature = "i18n")]
     Provider(ProviderError),
-    #[cfg(feature = "i18n")]
     ProviderSqlite3(ProviderSqlite3Error),
-    #[cfg(feature = "i18n")]
     Icu(IcuError),
+    Sqlite3(RefCount<Sqlite3Error>),
     Io(String), // Can't clone io::Error, as it is an OS error, thus converted to final String (can't be translated).
     ApplicationPath,
     ConfigDirNotFound,
     NoVendorDir(PathBuf),
     NoConfigFile(PathBuf),
-    DatabaseAlreadyOpen,
-    WindowIdNotFound(window::Id),
-    WindowTypeNotFound(WindowType),
+    WindowIdNotFound(window::Id, String),
+    WindowTypeNotFound(WindowType, String),
     ExpectedWindowParent(WindowType),
-    InvalidSchema(String),
-    LogLevel(String),
+    LanguageTagNotSupported(String),
+    InvalidWindowTypeMain(WindowType),
+    StateNotReusable(WindowType),
+    PlaceholderNotFound(WindowType),
 }
 
-#[cfg(feature = "i18n")]
-impl LocalisationErrorTrait for ApplicationError {}
+impl LocalisationErrorTrait for CoreError {}
 
-#[cfg(feature = "i18n")]
-impl LocalisationTrait for ApplicationError {
+impl LocalisationTrait for CoreError {
     fn localisation_data(&self) -> LocalisationData {
-        let type_string = PlaceholderValue::String("ApplicationError".to_string());
+        let type_string = PlaceholderValue::String("CoreError".to_string());
         match self {
-            #[cfg(feature = "persistent")]
-            ApplicationError::RonSpannedError(ref error) => {
+            CoreError::RonSpannedError(ref error) => {
                 // Currently no localisation is available for this error type: SpannedError.
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
@@ -81,9 +79,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-
-            #[cfg(feature = "persistent")]
-            ApplicationError::RonError(ref error) => {
+            CoreError::RonError(ref error) => {
                 // Currently no localisation is available for this error type: RonError.
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
@@ -102,7 +98,7 @@ impl LocalisationTrait for ApplicationError {
                 }
             }
 
-            ApplicationError::Localiser(ref error) => {
+            CoreError::Localiser(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
@@ -119,7 +115,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::Provider(ref error) => {
+            CoreError::Provider(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
@@ -136,7 +132,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::ProviderSqlite3(ref error) => {
+            CoreError::ProviderSqlite3(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
@@ -153,7 +149,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::Icu(ref error) => {
+            CoreError::Icu(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
@@ -170,7 +166,25 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::LanguageTagRegistry(ref error) => {
+            CoreError::Sqlite3(ref error) => {
+                // Currently no localisation is available for this error type: Sqlite3Error.
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("Sqlite3".to_string()),
+                );
+                values.insert(
+                    "error".to_string(),
+                    PlaceholderValue::String(error.to_string()),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some(values),
+                }
+            }
+            CoreError::LanguageTagRegistry(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
@@ -187,7 +201,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::Io(ref error) => {
+            CoreError::Io(ref error) => {
                 // Currently no localisation is available for this error type: IoError (always a String).
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
@@ -205,7 +219,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::ApplicationPath => {
+            CoreError::ApplicationPath => {
                 let message = LocalisationData {
                     component: "application".to_string(),
                     identifier: "application_data".to_string(),
@@ -227,7 +241,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::ConfigDirNotFound => {
+            CoreError::ConfigDirNotFound => {
                 let message = LocalisationData {
                     component: "application".to_string(),
                     identifier: "config_directory_not_found".to_string(),
@@ -249,7 +263,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::NoVendorDir(ref path) => {
+            CoreError::NoVendorDir(ref path) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
                     "path".to_string(),
@@ -276,7 +290,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::NoConfigFile(ref path) => {
+            CoreError::NoConfigFile(ref path) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
                     "path".to_string(),
@@ -303,33 +317,15 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::DatabaseAlreadyOpen => {
-                let message = LocalisationData {
-                    component: "application".to_string(),
-                    identifier: "database_already_opened".to_string(),
-                    values: None,
-                };
-                let mut values = HashMap::<String, PlaceholderValue>::new();
-                values.insert("type".to_string(), type_string);
-                values.insert(
-                    "variant".to_string(),
-                    PlaceholderValue::String("DatabaseAlreadyOpen".to_string()),
-                );
-                values.insert(
-                    "message".to_string(),
-                    PlaceholderValue::LocalisationData(message),
-                );
-                LocalisationData {
-                    component: "i18n_localiser".to_string(),
-                    identifier: "error_format_enum".to_string(),
-                    values: Some(values),
-                }
-            }
-            ApplicationError::WindowIdNotFound(ref id) => {
+            CoreError::WindowIdNotFound(ref id, field) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
-                    "window_type".to_string(),
+                    "id".to_string(),
                     PlaceholderValue::String(format!("{:?}", id)),
+                );
+                message_values.insert(
+                    "field".to_string(),
+                    PlaceholderValue::String(format!("{:?}", field)),
                 );
                 let message = LocalisationData {
                     component: "application".to_string(),
@@ -352,11 +348,15 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::WindowTypeNotFound(ref window_type) => {
+            CoreError::WindowTypeNotFound(ref window_type, field) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
-                    "window_type".to_string(),
+                    "type".to_string(),
                     PlaceholderValue::String(window_type.as_str().to_string()),
+                );
+                message_values.insert(
+                    "field".to_string(),
+                    PlaceholderValue::String(format!("{:?}", field)),
                 );
                 let message = LocalisationData {
                     component: "application".to_string(),
@@ -379,7 +379,7 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::ExpectedWindowParent(ref window_type) => {
+            CoreError::ExpectedWindowParent(ref window_type) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
                     "window_type".to_string(),
@@ -406,22 +406,19 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::InvalidSchema(ref name) => {
+            CoreError::LanguageTagNotSupported(ref tag) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
-                message_values.insert(
-                    "name".to_string(),
-                    PlaceholderValue::String(name.to_string()),
-                );
+                message_values.insert("tag".to_string(), PlaceholderValue::String(tag.to_string()));
                 let message = LocalisationData {
                     component: "application".to_string(),
-                    identifier: "schema_invalid".to_string(),
+                    identifier: "language_tag".to_string(),
                     values: Some(message_values),
                 };
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
                     "variant".to_string(),
-                    PlaceholderValue::String("InvalidSchema".to_string()),
+                    PlaceholderValue::String("LanguageTagNotSupported".to_string()),
                 );
                 values.insert(
                     "message".to_string(),
@@ -433,22 +430,76 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
-            ApplicationError::LogLevel(ref name) => {
+            CoreError::InvalidWindowTypeMain(ref window_type) => {
                 let mut message_values = HashMap::<String, PlaceholderValue>::new();
                 message_values.insert(
-                    "level".to_string(),
-                    PlaceholderValue::String(name.to_string()),
+                    "type".to_string(),
+                    PlaceholderValue::String(window_type.as_str().to_string()),
                 );
                 let message = LocalisationData {
                     component: "application".to_string(),
-                    identifier: "unknown_log_level".to_string(),
+                    identifier: "window_id_not_found".to_string(),
                     values: Some(message_values),
                 };
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
                 values.insert(
                     "variant".to_string(),
-                    PlaceholderValue::String("LogLevel".to_string()),
+                    PlaceholderValue::String("InvalidWindowTypeMain".to_string()),
+                );
+                values.insert(
+                    "message".to_string(),
+                    PlaceholderValue::LocalisationData(message),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some(values),
+                }
+            }
+            CoreError::StateNotReusable(ref window_type) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert(
+                    "type".to_string(),
+                    PlaceholderValue::String(window_type.as_str().to_string()),
+                );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "state_not_reusable".to_string(),
+                    values: Some(message_values),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("StateNotReusable".to_string()),
+                );
+                values.insert(
+                    "message".to_string(),
+                    PlaceholderValue::LocalisationData(message),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum".to_string(),
+                    values: Some(values),
+                }
+            }
+            CoreError::PlaceholderNotFound(ref window_type) => {
+                let mut message_values = HashMap::<String, PlaceholderValue>::new();
+                message_values.insert(
+                    "type".to_string(),
+                    PlaceholderValue::String(window_type.as_str().to_string()),
+                );
+                let message = LocalisationData {
+                    component: "application".to_string(),
+                    identifier: "placeholder_not_found".to_string(),
+                    values: Some(message_values),
+                };
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("PlaceholderNotFound".to_string()),
                 );
                 values.insert(
                     "message".to_string(),
@@ -464,130 +515,125 @@ impl LocalisationTrait for ApplicationError {
     }
 }
 
-impl Display for ApplicationError {
+impl Display for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> Result {
         match self {
-            #[cfg(feature = "persistent")]
-            ApplicationError::RonSpannedError(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "persistent")]
-            ApplicationError::RonError(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "i18n")]
-            ApplicationError::LanguageTagRegistry(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "i18n")]
-            ApplicationError::Localiser(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "i18n")]
-            ApplicationError::Provider(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "i18n")]
-            ApplicationError::ProviderSqlite3(ref error) => Display::fmt(&error, formatter),
-
-            #[cfg(feature = "i18n")]
-            ApplicationError::Icu(ref error) => Display::fmt(&error, formatter),
-
-            ApplicationError::Io(ref error) => Display::fmt(&error, formatter),
-            ApplicationError::ApplicationPath => {
+            CoreError::RonSpannedError(ref error) => Display::fmt(&error, formatter),
+            CoreError::RonError(ref error) => Display::fmt(&error, formatter),
+            CoreError::LanguageTagRegistry(ref error) => Display::fmt(&error, formatter),
+            CoreError::Localiser(ref error) => Display::fmt(&error, formatter),
+            CoreError::Provider(ref error) => Display::fmt(&error, formatter),
+            CoreError::ProviderSqlite3(ref error) => Display::fmt(&error, formatter),
+            CoreError::Icu(ref error) => Display::fmt(&error, formatter),
+            CoreError::Sqlite3(ref error) => Display::fmt(&error, formatter),
+            CoreError::Io(ref error) => Display::fmt(&error, formatter),
+            CoreError::ApplicationPath => {
                 write!(formatter, "Failed to retrieve the application path.")
             }
-            ApplicationError::ConfigDirNotFound => write!(
+            CoreError::ConfigDirNotFound => write!(
                 formatter,
                 "Failed to retrieve the user's configuration path."
             ),
-            ApplicationError::NoVendorDir(ref path) => write!(
+            CoreError::NoVendorDir(ref path) => write!(
                 formatter,
                 "The vendor directory ‘{}’ does not exist.",
                 path.display()
             ),
-            ApplicationError::NoConfigFile(ref path) => {
+            CoreError::NoConfigFile(ref path) => {
                 write!(formatter, "The file ‘{}’ does not exist.", path.display())
             }
-            ApplicationError::DatabaseAlreadyOpen => {
-                write!(formatter, "The database is already opened.")
-            }
-            ApplicationError::WindowIdNotFound(ref id) => write!(
+            CoreError::WindowIdNotFound(ref id, field) => write!(
                 formatter,
-                "The window Id ‘{:?}’ was not found in the struct field ‘window_ids’.",
-                id
+                "The window Id ‘{:?}’ was not found in the struct field ‘{:?}’.",
+                id, field
             ),
-            ApplicationError::WindowTypeNotFound(ref window_type) => write!(
+            CoreError::WindowTypeNotFound(ref window_type, field) => write!(
                 formatter,
-                "The window type ‘{:?}’ was not found in the struct field ‘windows’.",
-                window_type
+                "The window type ‘{:?}’ was not found in the struct field ‘{:?}’.",
+                window_type, field
             ),
-            ApplicationError::ExpectedWindowParent(ref window_type) => write!(
+            CoreError::ExpectedWindowParent(ref window_type) => write!(
                 formatter,
                 "Expected to get the parent window for the window type ‘{:?}’.",
                 window_type
             ),
-            ApplicationError::InvalidSchema(ref name) => write!(
+            CoreError::LanguageTagNotSupported(ref tag) => write!(
                 formatter,
-                "The Sqlite3 file schema is invalid for the database ‘{}’.",
-                name
+                "The language tag ‘{}’ is supported for the application's user interface.",
+                tag
             ),
-            ApplicationError::LogLevel(ref level) => {
-                write!(formatter, "Unknown log level: ‘{}’.", level)
-            }
+            CoreError::InvalidWindowTypeMain(ref window_type) => write!(
+                formatter,
+                "The window type ‘{:?}’ is invalid for a main window.",
+                window_type
+            ),
+            CoreError::StateNotReusable(ref window_type) => write!(
+                formatter,
+                "The window type ‘{:?}’ is not a reusable state.",
+                window_type
+            ),
+            CoreError::PlaceholderNotFound(ref window_type) => write!(
+                formatter,
+                "The placeholder of window type ‘{:?}’ is not found.",
+                window_type
+            ),
         }
     }
 }
 
 // Source is embedded in the enum value.
-impl Error for ApplicationError {}
+impl Error for CoreError {}
 
-impl From<IoError> for ApplicationError {
-    fn from(error: IoError) -> ApplicationError {
-        ApplicationError::Io(error.to_string())
+impl From<IoError> for CoreError {
+    fn from(error: IoError) -> CoreError {
+        CoreError::Io(format!("{}", error.to_string()))
     }
 }
 
-#[cfg(feature = "persistent")]
-impl From<SpannedError> for ApplicationError {
-    fn from(error: SpannedError) -> ApplicationError {
-        ApplicationError::RonSpannedError(error)
+impl From<SpannedError> for CoreError {
+    fn from(error: SpannedError) -> CoreError {
+        CoreError::RonSpannedError(error)
     }
 }
 
-#[cfg(feature = "persistent")]
-impl From<RonError> for ApplicationError {
-    fn from(error: RonError) -> ApplicationError {
-        ApplicationError::RonError(error)
+impl From<RonError> for CoreError {
+    fn from(error: RonError) -> CoreError {
+        CoreError::RonError(error)
     }
 }
 
-#[cfg(feature = "i18n")]
-impl From<LocaliserError> for ApplicationError {
-    fn from(error: LocaliserError) -> ApplicationError {
-        ApplicationError::Localiser(error)
+impl From<LocaliserError> for CoreError {
+    fn from(error: LocaliserError) -> CoreError {
+        CoreError::Localiser(error)
     }
 }
 
-#[cfg(feature = "i18n")]
-impl From<ProviderError> for ApplicationError {
-    fn from(error: ProviderError) -> ApplicationError {
-        ApplicationError::Provider(error)
+impl From<ProviderError> for CoreError {
+    fn from(error: ProviderError) -> CoreError {
+        CoreError::Provider(error)
     }
 }
 
-#[cfg(feature = "i18n")]
-impl From<ProviderSqlite3Error> for ApplicationError {
-    fn from(error: ProviderSqlite3Error) -> ApplicationError {
-        ApplicationError::ProviderSqlite3(error)
+impl From<ProviderSqlite3Error> for CoreError {
+    fn from(error: ProviderSqlite3Error) -> CoreError {
+        CoreError::ProviderSqlite3(error)
     }
 }
 
-#[cfg(feature = "i18n")]
-impl From<IcuError> for ApplicationError {
-    fn from(error: IcuError) -> ApplicationError {
-        ApplicationError::Icu(error)
+impl From<IcuError> for CoreError {
+    fn from(error: IcuError) -> CoreError {
+        CoreError::Icu(error)
     }
 }
 
-#[cfg(feature = "i18n")]
-impl From<RegistryError> for ApplicationError {
-    fn from(error: RegistryError) -> ApplicationError {
-        ApplicationError::LanguageTagRegistry(error)
+impl From<RegistryError> for CoreError {
+    fn from(error: RegistryError) -> CoreError {
+        CoreError::LanguageTagRegistry(error)
+    }
+}
+
+impl From<Sqlite3Error> for CoreError {
+    fn from(error: Sqlite3Error) -> CoreError {
+        CoreError::Sqlite3(RefCount::new(error))
     }
 }

@@ -1,165 +1,250 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-use super::{environment::Environment, error::ApplicationError};
+//! The localisation component of the mini application framework.
+//!
+//! Add new window localisation under `src/windows/` directory.
+
+use crate::{
+    application::{environment::Environment, StringGroup},
+    core::{error::CoreError, traits::AnyLocalisedTrait},
+};
 use i18n::{
     lexer::{DataProvider, IcuDataProvider},
     localiser::{CommandRegistry, Localiser},
+    provider::RepositoryDetails,
     provider_sqlite3::LocalisationProviderSqlite3,
-    utility::LanguageTagRegistry,
+    utility::{
+        Direction, LanguageTag, LanguageTagRegistry, LocalisationData, LocalisationErrorTrait,
+        PlaceholderValue, ScriptDirection, TaggedString,
+    },
 };
 use iced::Alignment;
-use icu_locid::LanguageIdentifier;
-use icu_locid_transform::{Direction as IcuDirection, LocaleDirectionality};
-use std::default::Default;
+use std::collections::HashMap;
 
-#[cfg(feature = "log")]
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
-
-#[cfg(feature = "sync")]
-use std::sync::Arc as RefCount;
 
 #[cfg(not(feature = "sync"))]
 use std::rc::Rc as RefCount;
 
-/// Script text flow directions.
-///
-/// Currently ICU library only provides word flow direction for top to bottom line flow.
-/// ICU4X developers are planning to complete support for all flow directions, to support the many types of scripts
-/// available.
-///
-/// This framework provides data for all flow directions in the meantime, in order to avoid redesigning this framework
-/// to support the other flow directions later when both ICU library (provides information) and `iced` library (renders
-/// the glyphs to a screen region) supports vertical text.
-///
-/// Most common is top to bottom line flow.
-pub const SCRIPT_TTB_LTR: ScriptData = ScriptData {
-    flow_line: Direction::TopToBottom,
-    flow_word: Direction::LeftToRight,
-    reverse_lines: false,
-    reverse_words: false,
-    align_lines_start: Alignment::Start,
-    align_lines_end: Alignment::End,
-    align_words_start: Alignment::Start,
-    align_words_end: Alignment::End,
-};
-pub const SCRIPT_TTB_RTL: ScriptData = ScriptData {
-    flow_line: Direction::TopToBottom,
-    flow_word: Direction::RightToLeft,
-    reverse_lines: false,
-    reverse_words: true,
-    align_lines_start: Alignment::Start,
-    align_lines_end: Alignment::End,
-    align_words_start: Alignment::End,
-    align_words_end: Alignment::Start,
-};
+#[cfg(feature = "sync")]
+#[cfg(target_has_atomic = "ptr")]
+use std::sync::Arc as RefCount;
 
-/// Commonly known as vertical texts, for various eastern asia scripts.
-pub const SCRIPT_RTL_TTB: ScriptData = ScriptData {
-    flow_line: Direction::RightToLeft,
-    flow_word: Direction::TopToBottom,
-    reverse_lines: true,
-    reverse_words: false,
-    align_lines_start: Alignment::End,
-    align_lines_end: Alignment::Start,
-    align_words_start: Alignment::Start,
-    align_words_end: Alignment::End,
-};
-pub const SCRIPT_LTR_TTB: ScriptData = ScriptData {
-    flow_line: Direction::LeftToRight,
-    flow_word: Direction::TopToBottom,
-    reverse_lines: false,
-    reverse_words: false,
-    align_lines_start: Alignment::Start,
-    align_lines_end: Alignment::End,
-    align_words_start: Alignment::Start,
-    align_words_end: Alignment::End,
-};
+//
+// ----- The localisation for the UI
+//
 
-/// The bottom to top line flow is very, though some have been seen on monuments.
-pub const SCRIPT_BTT_LTR: ScriptData = ScriptData {
-    flow_line: Direction::BottomToTop,
-    flow_word: Direction::LeftToRight,
-    reverse_lines: true,
-    reverse_words: false,
-    align_lines_start: Alignment::End,
-    align_lines_end: Alignment::Start,
-    align_words_start: Alignment::Start,
-    align_words_end: Alignment::End,
-};
-pub const SCRIPT_BTT_RTL: ScriptData = ScriptData {
-    flow_line: Direction::BottomToTop,
-    flow_word: Direction::RightToLeft,
-    reverse_lines: true,
-    reverse_words: true,
-    align_lines_start: Alignment::End,
-    align_lines_end: Alignment::Start,
-    align_words_start: Alignment::End,
-    align_words_end: Alignment::Start,
-};
-pub const SCRIPT_RTL_BTT: ScriptData = ScriptData {
-    flow_line: Direction::RightToLeft,
-    flow_word: Direction::BottomToTop,
-    reverse_lines: true,
-    reverse_words: true,
-    align_lines_start: Alignment::End,
-    align_lines_end: Alignment::Start,
-    align_words_start: Alignment::End,
-    align_words_end: Alignment::Start,
-};
-pub const SCRIPT_LTR_BTT: ScriptData = ScriptData {
-    flow_line: Direction::LeftToRight,
-    flow_word: Direction::BottomToTop,
-    reverse_lines: false,
-    reverse_words: true,
-    align_lines_start: Alignment::Start,
-    align_lines_end: Alignment::End,
-    align_words_start: Alignment::End,
-    align_words_end: Alignment::Start,
-};
+pub struct StringCache {
+    // Contains the shared localised strings of the window types
+    // Instances specific localisation, such as messages, are stored instead in the window's state
+    cache: HashMap<StringGroup, Box<dyn AnyLocalisedTrait>>,
+}
 
-// Initialise the i18n message system for the UI, using ICU4X internal data.
+impl StringCache {
+    pub fn try_new() -> Result<StringCache, CoreError> {
+        Ok(StringCache {
+            cache: HashMap::<StringGroup, Box<dyn AnyLocalisedTrait>>::new(),
+        })
+    }
+
+    pub fn try_update(&mut self, localisation: &Localisation) -> Result<(), CoreError> {
+        for (string_group, strings) in self.cache.iter_mut() {
+            strings.try_update(localisation)?;
+            trace!(
+                "Updated strings for string group ‘{:?}’: {:?}",
+                string_group,
+                strings
+            );
+        }
+        Ok(())
+    }
+
+    pub fn exists(&self, string_group: &StringGroup) -> bool {
+        self.cache.contains_key(string_group)
+    }
+
+    pub fn insert(
+        &mut self,
+        string_group: StringGroup,
+        localised_strings: Box<dyn AnyLocalisedTrait>,
+    ) {
+        let _ = self.cache.insert(string_group, localised_strings);
+    }
+
+    pub fn get(&self, string_group: &StringGroup) -> Option<&Box<dyn AnyLocalisedTrait>> {
+        self.cache.get(string_group)
+    }
+}
+
 pub struct Localisation {
+    // The i18n localiser
     localiser: Localiser,
-    directionality: LocaleDirectionality, // ICU4X
+
+    // Layout data for the default language. Cached copy from available_languages as there are many view() calls.
+    layout_data: LayoutData,
+
+    // Available languages according to supported scripts
+    available_languages: HashMap<RefCount<LanguageTag>, (LayoutData, f32)>,
 }
 
 impl Localisation {
-    pub fn try_new(
+    pub fn try_new<T: AsRef<str>>(
         environment: &Environment,
-        language: &str, //T,
-    ) -> Result<Localisation, ApplicationError> {
+        language: T,
+    ) -> Result<Localisation, CoreError> {
+        let directions = vec![
+            ScriptDirection::TopToBottomLeftToRight,
+            ScriptDirection::TopToBottomRightToLeft,
+        ];
+        let mut available_languages = HashMap::<RefCount<LanguageTag>, (LayoutData, f32)>::new();
         let language_tag_registry = RefCount::new(LanguageTagRegistry::new());
         let path = environment.application_path.join("l10n");
-        let localisation_provider =
-            LocalisationProviderSqlite3::try_new(path, &language_tag_registry, false)?;
+        let localisation_provider = Box::new(
+            LocalisationProviderSqlite3::try_new(
+                path, &language_tag_registry, false
+            )?
+        );
         let icu_data_provider = RefCount::new(IcuDataProvider::try_new(DataProvider::Internal)?);
         let command_registry = RefCount::new(CommandRegistry::new());
         let localiser = Localiser::try_new(
             &icu_data_provider,
             &language_tag_registry,
-            Box::new(localisation_provider),
+            localisation_provider,
             &command_registry,
             true,
             true,
-            language,
+            language.as_ref(),
         )?;
-        let directionality = LocaleDirectionality::new();
+        let binding = localiser
+            .localisation_provider()
+            .component_details("application")?;
+        debug!("Building language list");
+        for language_data in binding.languages.iter() {
+            match localiser.script_data_for_language_tag(language_data.0) {
+                None => {
+                    debug!("Language tag ‘{:?}’ is not supported for the application's user interface.", language_data.0);
+                }
+                Some(script_data) => {
+                    for script_direction in script_data.directions {
+                        for supported in directions.iter() {
+                            if script_direction == *supported {
+                                debug!("Adding language: ‘{:?}’", language_data.0);
+
+                                available_languages.insert(
+                                    language_data.0.clone(),
+                                    (LayoutData::new(&script_direction), language_data.1.ratio),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let layout_data = available_languages
+            .get(&localiser.default_language())
+            .unwrap()
+            .0
+            .clone();
         Ok(Localisation {
             localiser,
-            directionality,
+            layout_data,
+            available_languages,
         })
     }
 
-    pub fn localiser(&self) -> &Localiser {
-        &self.localiser
+    // ----- Exposed Localiser methods
+
+    pub fn language_tag_registry(&self) -> &RefCount<LanguageTagRegistry> {
+        self.localiser.language_tag_registry()
     }
 
-    pub fn directionality(&self) -> &LocaleDirectionality {
-        &self.directionality
+    pub fn icu_data_provider(&self) -> &RefCount<IcuDataProvider> {
+        self.localiser.icu_data_provider()
+    }
+
+    pub fn command_registry(&self) -> &RefCount<CommandRegistry> {
+        self.localiser.command_registry()
+    }
+
+    pub fn default_language(&self) -> RefCount<LanguageTag> {
+        self.localiser.default_language()
+    }
+
+    pub fn repository_details(&self) -> Result<RefCount<RepositoryDetails>, CoreError> {
+        Ok(self
+            .localiser
+            .localisation_provider()
+            .repository_details()?)
+    }
+
+    pub fn literal_with_defaults(
+        &self,
+        component: &str,
+        identifier: &str,
+    ) -> Result<TaggedString, CoreError> {
+        Ok(self
+            .localiser
+            .literal_with_defaults(component, identifier)?)
+    }
+
+    pub fn format_with_defaults(
+        &self,
+        component: &str,
+        identifier: &str,
+        values: &HashMap<String, PlaceholderValue>,
+    ) -> Result<TaggedString, CoreError> {
+        Ok(self
+            .localiser
+            .format_with_defaults(component, identifier, values)?)
+    }
+
+    pub fn format_error_with_defaults(
+        &self,
+        error: &impl LocalisationErrorTrait,
+    ) -> Result<TaggedString, CoreError> {
+        Ok(self.localiser.format_error_with_defaults(error)?)
+    }
+
+    pub fn format_localisation_data_with_defaults(
+        &self,
+        data: &LocalisationData,
+    ) -> Result<TaggedString, CoreError> {
+        Ok(self
+            .localiser
+            .format_localisation_data_with_defaults(data)?)
+    }
+
+    // ----- Localisation methods
+
+    pub fn available_languages(&self) -> &HashMap<RefCount<LanguageTag>, (LayoutData, f32)> {
+        &self.available_languages
+    }
+
+    pub fn change_default_language(
+        &mut self,
+        tag: RefCount<LanguageTag>,
+    ) -> Result<bool, CoreError> {
+        if tag != self.localiser.default_language() {
+            let Some(layout) = self.available_languages.get(&tag) else {
+                return Err(CoreError::LanguageTagNotSupported(tag.as_str().to_string()));
+            };
+            self.localiser.defaults(Some(tag), None, None)?;
+            self.layout_data = layout.0.clone();
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    pub fn layout_data(&self) -> &LayoutData {
+        &self.layout_data
     }
 }
+
+//
+// ----- Script directionality
+//
 
 /// Text flow data of scripts.
 ///
@@ -185,8 +270,9 @@ impl Localisation {
 ///
 /// `iced` horizontal layout flow is top to bottom for lines/rows and left to right for words/columns. Currently `iced`
 /// has not vertical layout support.
-//#[allow( dead_code )]
-pub struct ScriptData {
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct LayoutData {
     pub flow_line: Direction,
     pub flow_word: Direction,
     pub reverse_lines: bool,
@@ -197,94 +283,95 @@ pub struct ScriptData {
     pub align_words_end: Alignment,
 }
 
-impl ScriptData {
-    /// Currently supports only two script flow types: top to bottom left to right, and top to bottom right to left.
-    pub fn new(
-        localisation: &Localisation,
-        language_identier: &RefCount<LanguageIdentifier>,
-    ) -> Self {
-        let direction = match localisation
-            .directionality()
-            .get(language_identier.as_ref())
-        {
-            None => ScriptDirection::default(),
-            Some(icu_direction) => match icu_direction {
-                IcuDirection::LeftToRight => ScriptDirection::TopToBottomLeftToRight,
-                IcuDirection::RightToLeft => ScriptDirection::TopToBottomRightToLeft,
-                _ => ScriptDirection::default(), // needed for #[non_exhaustive] defined on IcuDirection enum.
+impl LayoutData {
+    pub fn new(script_direction: &ScriptDirection) -> Self {
+        match script_direction {
+            // Most common is top to bottom line flow.
+            ScriptDirection::TopToBottomLeftToRight => LayoutData {
+                flow_line: Direction::TopToBottom,
+                flow_word: Direction::LeftToRight,
+                reverse_lines: false,
+                reverse_words: false,
+                align_lines_start: Alignment::Start,
+                align_lines_end: Alignment::End,
+                align_words_start: Alignment::Start,
+                align_words_end: Alignment::End,
             },
-        };
-        match direction {
-            ScriptDirection::TopToBottomLeftToRight => SCRIPT_TTB_LTR,
-            ScriptDirection::TopToBottomRightToLeft => SCRIPT_TTB_RTL,
-            ScriptDirection::RightToLeftTopToBottom => SCRIPT_RTL_TTB,
-            ScriptDirection::RightToLeftBottomToTop => SCRIPT_LTR_BTT,
-            ScriptDirection::LeftToRightTopToBottom => SCRIPT_LTR_TTB,
-            ScriptDirection::LeftToRightBottomToTop => SCRIPT_LTR_BTT,
-            ScriptDirection::BottomToTopLeftToRight => SCRIPT_BTT_LTR,
-            ScriptDirection::BottomToTopRightToLeft => SCRIPT_BTT_RTL,
+            ScriptDirection::TopToBottomRightToLeft => LayoutData {
+                flow_line: Direction::TopToBottom,
+                flow_word: Direction::RightToLeft,
+                reverse_lines: false,
+                reverse_words: true,
+                align_lines_start: Alignment::Start,
+                align_lines_end: Alignment::End,
+                align_words_start: Alignment::End,
+                align_words_end: Alignment::Start,
+            },
+
+            // Commonly known as vertical texts, for various eastern asian scripts.
+            ScriptDirection::RightToLeftTopToBottom => LayoutData {
+                flow_line: Direction::RightToLeft,
+                flow_word: Direction::TopToBottom,
+                reverse_lines: true,
+                reverse_words: false,
+                align_lines_start: Alignment::End,
+                align_lines_end: Alignment::Start,
+                align_words_start: Alignment::Start,
+                align_words_end: Alignment::End,
+            },
+            ScriptDirection::RightToLeftBottomToTop => LayoutData {
+                flow_line: Direction::LeftToRight,
+                flow_word: Direction::TopToBottom,
+                reverse_lines: false,
+                reverse_words: false,
+                align_lines_start: Alignment::Start,
+                align_lines_end: Alignment::End,
+                align_words_start: Alignment::Start,
+                align_words_end: Alignment::End,
+            },
+
+            // The bottom to top line flow is very rare, though some have been seen on monuments.
+            // Mongolian script is such a script
+            ScriptDirection::LeftToRightTopToBottom => LayoutData {
+                flow_line: Direction::BottomToTop,
+                flow_word: Direction::LeftToRight,
+                reverse_lines: true,
+                reverse_words: false,
+                align_lines_start: Alignment::End,
+                align_lines_end: Alignment::Start,
+                align_words_start: Alignment::Start,
+                align_words_end: Alignment::End,
+            },
+            ScriptDirection::LeftToRightBottomToTop => LayoutData {
+                flow_line: Direction::BottomToTop,
+                flow_word: Direction::RightToLeft,
+                reverse_lines: true,
+                reverse_words: true,
+                align_lines_start: Alignment::End,
+                align_lines_end: Alignment::Start,
+                align_words_start: Alignment::End,
+                align_words_end: Alignment::Start,
+            },
+            ScriptDirection::BottomToTopLeftToRight => LayoutData {
+                flow_line: Direction::RightToLeft,
+                flow_word: Direction::BottomToTop,
+                reverse_lines: true,
+                reverse_words: true,
+                align_lines_start: Alignment::End,
+                align_lines_end: Alignment::Start,
+                align_words_start: Alignment::End,
+                align_words_end: Alignment::Start,
+            },
+            ScriptDirection::BottomToTopRightToLeft => LayoutData {
+                flow_line: Direction::LeftToRight,
+                flow_word: Direction::BottomToTop,
+                reverse_lines: false,
+                reverse_words: true,
+                align_lines_start: Alignment::Start,
+                align_lines_end: Alignment::End,
+                align_words_start: Alignment::End,
+                align_words_end: Alignment::Start,
+            },
         }
     }
 }
-
-// ------------------------------------------------------------------------------------------
-// These are taken from local dev branch of the `i18n` project. Future version of `i18n` will include these.
-
-pub enum Direction {
-    TopToBottom,
-    BottomToTop,
-    LeftToRight,
-    RightToLeft,
-}
-
-#[derive(Default)]
-pub enum ScriptDirection {
-    #[default]
-    TopToBottomLeftToRight,
-    TopToBottomRightToLeft,
-    BottomToTopLeftToRight,
-    BottomToTopRightToLeft,
-    LeftToRightTopToBottom,
-    LeftToRightBottomToTop,
-    RightToLeftTopToBottom,
-    RightToLeftBottomToTop,
-}
-
-impl ScriptDirection {
-    pub fn directions(&self) -> (Direction, Direction) {
-        match self {
-            ScriptDirection::TopToBottomLeftToRight => {
-                (Direction::TopToBottom, Direction::LeftToRight)
-            }
-            ScriptDirection::TopToBottomRightToLeft => {
-                (Direction::TopToBottom, Direction::RightToLeft)
-            }
-            ScriptDirection::RightToLeftTopToBottom => {
-                (Direction::RightToLeft, Direction::TopToBottom)
-            }
-            ScriptDirection::RightToLeftBottomToTop => {
-                (Direction::RightToLeft, Direction::BottomToTop)
-            }
-            ScriptDirection::LeftToRightTopToBottom => {
-                (Direction::LeftToRight, Direction::TopToBottom)
-            }
-            ScriptDirection::LeftToRightBottomToTop => {
-                (Direction::LeftToRight, Direction::BottomToTop)
-            }
-            ScriptDirection::BottomToTopLeftToRight => {
-                (Direction::BottomToTop, Direction::LeftToRight)
-            }
-            ScriptDirection::BottomToTopRightToLeft => {
-                (Direction::BottomToTop, Direction::RightToLeft)
-            }
-        }
-    }
-}
-
-/*
-impl Default for ScriptDirection {
-    fn default() -> Self {
-        ScriptDirection::TopToBottomLeftToRight
-    }
-}
-*/

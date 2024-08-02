@@ -32,7 +32,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
 }
 
 impl Strings {
@@ -78,7 +78,7 @@ impl LocalisedTrait for Strings {
 
 fn localise(
     localisation: &Localisation,
-) -> Result<(RefCount<LanguageTag>, Vec<String>), CoreError> {
+) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
     let title = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
@@ -86,36 +86,32 @@ fn localise(
             "application".to_string(),
             PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
         );
+        let localised = localisation.literal_with_defaults("word", "about_i")?;
         values.insert(
             "window".to_string(),
-            PlaceholderValue::TaggedString(localisation.literal_with_defaults("word", "about_i")?),
+            PlaceholderValue::Localised(localised.0, localised.1),
         );
         localisation.format_with_defaults("application", "window_title_format", &values)?
-    }
-    .to_string();
+    }.0;
     let contributors = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
+        let localised = localisation.literal_with_defaults("word", "contributors_ip")?;
         values.insert(
             "phrase".to_string(),
-            PlaceholderValue::TaggedString(
-                localisation.literal_with_defaults("word", "contributors_ip")?,
-            ),
+            PlaceholderValue::Localised(localised.0, localised.1),
         );
         localisation.format_with_defaults("application", "add_colon_format", &values)?
-    }
-    .to_string();
-    let ok = { localisation.literal_with_defaults("word", "ok_i")? }.to_string();
+    }.0;
+    let ok = { localisation.literal_with_defaults("word", "ok_i")? }.0;
     let localisation_contributors = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
+        let localised = localisation.literal_with_defaults("application", "localisation_contributors")?;
         values.insert(
             "phrase".to_string(),
-            PlaceholderValue::TaggedString(
-                localisation.literal_with_defaults("application", "localisation_contributors")?,
-            ),
+            PlaceholderValue::Localised(localised.0, localised.1),
         );
         localisation.format_with_defaults("application", "add_colon_format", &values)?
-    }
-    .to_string();
+    }.0;
     Ok((
         language_tag,
         vec![title, contributors, ok, localisation_contributors],

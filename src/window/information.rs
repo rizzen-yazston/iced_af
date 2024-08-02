@@ -22,9 +22,16 @@ use std::{
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+#[cfg(not(feature = "sync"))]
+use std::rc::Rc as RefCount;
+
+#[cfg(feature = "sync")]
+#[cfg(target_has_atomic = "ptr")]
+use std::sync::Arc as RefCount;
+
 pub struct State {
     information_type: InformationType,
-    title: String,
+    title: RefCount<String>,
     message: String,
 }
 
@@ -47,8 +54,7 @@ impl State {
             );
             values.insert("window".to_string(), PlaceholderValue::String(title));
             localisation.format_with_defaults("application", "window_type_title_format", &values)?
-        }
-        .to_string();
+        }.0;
         Ok(State {
             information_type: InformationType::Information,
             title,
@@ -74,8 +80,7 @@ impl State {
             );
             values.insert("window".to_string(), PlaceholderValue::String(title));
             localisation.format_with_defaults("application", "window_type_title_format", &values)?
-        }
-        .to_string();
+        }.0;
         Ok(State {
             information_type: InformationType::Warning,
             title,
@@ -101,8 +106,7 @@ impl State {
             );
             values.insert("window".to_string(), PlaceholderValue::String(title));
             localisation.format_with_defaults("application", "window_type_title_format", &values)?
-        }
-        .to_string();
+        }.0;
         Ok(State {
             information_type: InformationType::Error,
             title,

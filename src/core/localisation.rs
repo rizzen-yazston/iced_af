@@ -16,7 +16,7 @@ use i18n::{
     provider_sqlite3::LocalisationProviderSqlite3,
     utility::{
         Direction, LanguageTag, LanguageTagRegistry, LocalisationData, LocalisationErrorTrait,
-        PlaceholderValue, ScriptDirection, TaggedString,
+        PlaceholderValue, ScriptDirection,
     },
 };
 use iced::Alignment;
@@ -183,7 +183,7 @@ impl Localisation {
         &self,
         component: &str,
         identifier: &str,
-    ) -> Result<TaggedString, CoreError> {
+    ) -> Result<(RefCount<String>, RefCount<LanguageTag>), CoreError> {
         Ok(self
             .localiser
             .literal_with_defaults(component, identifier)?)
@@ -194,7 +194,7 @@ impl Localisation {
         component: &str,
         identifier: &str,
         values: &HashMap<String, PlaceholderValue>,
-    ) -> Result<TaggedString, CoreError> {
+    ) -> Result<(RefCount<String>, RefCount<LanguageTag>), CoreError> {
         Ok(self
             .localiser
             .format_with_defaults(component, identifier, values)?)
@@ -203,14 +203,14 @@ impl Localisation {
     pub fn format_error_with_defaults(
         &self,
         error: &impl LocalisationErrorTrait,
-    ) -> Result<TaggedString, CoreError> {
+    ) -> Result<(RefCount<String>, RefCount<LanguageTag>), CoreError> {
         Ok(self.localiser.format_error_with_defaults(error)?)
     }
 
     pub fn format_localisation_data_with_defaults(
         &self,
         data: &LocalisationData,
-    ) -> Result<TaggedString, CoreError> {
+    ) -> Result<(RefCount<String>, RefCount<LanguageTag>), CoreError> {
         Ok(self
             .localiser
             .format_localisation_data_with_defaults(data)?)

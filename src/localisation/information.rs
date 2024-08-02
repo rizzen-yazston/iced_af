@@ -30,7 +30,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
 }
 
 impl Strings {
@@ -76,21 +76,17 @@ impl LocalisedTrait for Strings {
 
 fn localise(
     localisation: &Localisation,
-) -> Result<(RefCount<LanguageTag>, Vec<String>), CoreError> {
+) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
-    let title = String::new(); // Not used, State has the dynamic string
+    let title = RefCount::new(String::new()); // Not used, State has the dynamic string
     let information = localisation
-        .literal_with_defaults("word", "information_i")?
-        .to_string();
+        .literal_with_defaults("word", "information_i")?.0;
     let warning = localisation
-        .literal_with_defaults("word", "warning_i")?
-        .to_string();
+        .literal_with_defaults("word", "warning_i")?.0;
     let error = localisation
-        .literal_with_defaults("word", "error_i")?
-        .to_string();
+        .literal_with_defaults("word", "error_i")?.0;
     let close = localisation
-        .literal_with_defaults("word", "close_i")?
-        .to_string();
+        .literal_with_defaults("word", "close_i")?.0;
     Ok((
         language_tag,
         vec![title, information, warning, error, close],

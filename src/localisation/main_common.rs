@@ -35,7 +35,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
 }
 
 impl Strings {
@@ -81,41 +81,34 @@ impl LocalisedTrait for Strings {
 
 fn localise(
     localisation: &Localisation,
-) -> Result<(RefCount<LanguageTag>, Vec<String>), CoreError> {
+) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
 
     // File menu
-    let title = String::new(); // Not used.
+    let title = RefCount::new(String::new()); // Not used.
     let file_ = localisation
-        .literal_with_defaults("word", "file_i")?
-        .to_string();
+        .literal_with_defaults("word", "file_i")?.0;
     let open = localisation
-        .literal_with_defaults("word", "open_i")?
-        .to_string();
+        .literal_with_defaults("word", "open_i")?.0;
 
     // Edit menu
     let edit = localisation
-        .literal_with_defaults("word", "edit_i")?
-        .to_string();
+        .literal_with_defaults("word", "edit_i")?.0;
     let preferences = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
+        let localised = localisation.literal_with_defaults("word", "preferences_i")?;
         values.insert(
             "phrase".to_string(),
-            PlaceholderValue::TaggedString(
-                localisation.literal_with_defaults("word", "preferences_i")?,
-            ),
+            PlaceholderValue::Localised(localised.0, localised.1),
         );
         localisation.format_with_defaults("application", "add_elipsis_format", &values)?
-    }
-    .to_string();
+    }.0;
 
     // Help menu
     let help = localisation
-        .literal_with_defaults("word", "help_i")?
-        .to_string();
+        .literal_with_defaults("word", "help_i")?.0;
     let about = localisation
-        .literal_with_defaults("word", "about_i")?
-        .to_string();
+        .literal_with_defaults("word", "about_i")?.0;
 
     Ok((
         language_tag,

@@ -31,7 +31,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
 }
 
 impl Strings {
@@ -67,7 +67,7 @@ impl LocalisedTrait for Strings {
 fn localise(
     localisation: &Localisation,
     error: ApplicationError,
-) -> (RefCount<LanguageTag>, Vec<String>) {
+) -> (RefCount<LanguageTag>, Vec<RefCount<String>>) {
     let language_tag = localisation.default_language();
     let title = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
@@ -75,18 +75,29 @@ fn localise(
             "application".to_string(),
             PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
         );
-        values.insert(
-            "window".to_string(),
-            PlaceholderValue::String(
-                match localisation.literal_with_defaults("application", "fatal_error") {
-                    Ok(value) => value.to_string(),
-                    Err(_) => "Fatal error".to_string(),
-                },
+        match localisation.literal_with_defaults("application", "fatal_error") {
+            Ok(localised) => values.insert(
+                "window".to_string(),
+                PlaceholderValue::Localised(localised.0, localised.1),
             ),
-        );
+            Err(_) => values.insert(
+                "application".to_string(),
+                PlaceholderValue::String("Fatal error".to_string()),
+            ),
+        };
+        match localisation.literal_with_defaults("application", "fatal_error") {
+            Ok(localised) => values.insert(
+                "window".to_string(),
+                PlaceholderValue::Localised(localised.0, localised.1),
+            ),
+            Err(_) => values.insert(
+                "application".to_string(),
+                PlaceholderValue::String("Fatal error".to_string()),
+            ),
+        };
         match localisation.format_with_defaults("application", "window_title_format", &values) {
-            Ok(value) => value.to_string(),
-            Err(_) => format!("{} - Fatal error", APPLICATION_NAME_SHORT),
+            Ok(value) => value.0,
+            Err(_) => RefCount::new(format!("{} - Fatal error", APPLICATION_NAME_SHORT)),
         }
     };
     let uncaught_error = {
@@ -96,8 +107,8 @@ fn localise(
             PlaceholderValue::LocalisationData(error.localisation_data()),
         );
         match localisation.format_with_defaults("application", "uncaught_error", &values) {
-            Ok(value) => value.to_string(),
-            Err(_) => format!("The following error was not caught: '{}'", error),
+            Ok(value) => value.0,
+            Err(_) => RefCount::new(format!("The following error was not caught: '{}'", error)),
         }
     };
 
@@ -113,15 +124,15 @@ fn localise(
                 PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
             );
             match localisation.format_with_defaults("application", "quit_macos", &values) {
-                Ok(value) => value.to_string(),
-                Err(_) => format!("Quit {}", APPLICATION_NAME_SHORT),
+                Ok(value) => value.0,
+                Err(_) => RefCount::new(format!("Quit {}", APPLICATION_NAME_SHORT)),
             }
         }
 
         #[cfg(not(target_os = "macos"))]
         match localisation.literal_with_defaults("word", "exit_i") {
-            Ok(value) => value.to_string(),
-            Err(_) => "Exit".to_string(),
+            Ok(value) => value.0,
+            Err(_) => RefCount::new("Exit".to_string()),
         }
     };
     (language_tag, vec![title, uncaught_error, exit])

@@ -45,7 +45,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
     language_list: Vec<String>,
     language_map_to_tag: HashMap<String, RefCount<LanguageTag>>,
     language_map_to_string: HashMap<RefCount<LanguageTag>, String>,
@@ -110,7 +110,8 @@ impl LocalisedTrait for Strings {
             debug!("Updating Preference UI localisation.");
 
             // Obtain localised strings
-            let (language_tag, mut strings) = localise(localisation)?;
+            let (language_tag, mut strings) =
+                localise(localisation)?;
             let (language_list, language_map_to_tag, language_map_to_string) =
                 localise_i18n(localisation, &mut strings)?;
             let (log_list, log_map_to_level, log_map_to_string) =
@@ -144,7 +145,7 @@ impl LocalisedTrait for Strings {
 
 fn localise(
     localisation: &Localisation,
-) -> Result<(RefCount<LanguageTag>, Vec<String>), CoreError> {
+) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
     let title = {
         let mut values = HashMap::<String, PlaceholderValue>::new();
@@ -152,27 +153,23 @@ fn localise(
             "application".to_string(),
             PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
         );
+        let localised = localisation.literal_with_defaults("word", "preferences_i")?;
         values.insert(
             "window".to_string(),
-            PlaceholderValue::TaggedString(
-                localisation.literal_with_defaults("word", "preferences_i")?,
-            ),
+            PlaceholderValue::Localised(localised.0, localised.1),
         );
         localisation.format_with_defaults("application", "window_title_format", &values)?
-    }
-    .to_string();
+    }.0;
     let accept = localisation
-        .literal_with_defaults("word", "accept_i")?
-        .to_string();
+        .literal_with_defaults("word", "accept_i")?.0;
     let cancel = localisation
-        .literal_with_defaults("word", "cancel_i")?
-        .to_string();
+        .literal_with_defaults("word", "cancel_i")?.0;
     Ok((language_tag, vec![title, accept, cancel]))
 }
 
 fn localise_i18n(
     localisation: &Localisation,
-    strings: &mut Vec<String>,
+    strings: &mut Vec<RefCount<String>>,
 ) -> Result<
     (
         Vec<String>,
@@ -196,7 +193,13 @@ fn localise_i18n(
             PlaceholderValue::Unsigned((ratio * 100f32) as u128),
         );
         let text = localisation
-            .format_with_defaults("application", "language_percent_format", &values)?
+            .format_with_defaults(
+                "application",
+                "language_percent_format",
+                &values
+            )?
+            .0
+            .as_str()
             .to_string();
         list.push(text.clone());
         map_to_tag.insert(text.clone(), RefCount::clone(tag));
@@ -204,25 +207,22 @@ fn localise_i18n(
     }
     strings.push(
         localisation
-            .literal_with_defaults("word", "language_i")?
-            .to_string(),
+            .literal_with_defaults("word", "language_i")?.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "ui_language")?
-            .to_string(),
+            .literal_with_defaults("application", "ui_language")?.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "placeholder_language")?
-            .to_string(),
+            .literal_with_defaults("application", "placeholder_language")?.0
     );
     Ok((list, map_to_tag, map_to_string))
 }
 
 fn localise_log(
     localisation: &Localisation,
-    strings: &mut Vec<String>,
+    strings: &mut Vec<RefCount<String>>,
 ) -> Result<
     (
         Vec<String>,
@@ -236,23 +236,19 @@ fn localise_log(
     let mut list = Vec::<String>::new();
     strings.push(
         localisation
-            .literal_with_defaults("word", "logs_i")?
-            .to_string(),
+            .literal_with_defaults("word", "logs_i")?.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "log_level_default")?
-            .to_string(),
+            .literal_with_defaults("application", "log_level_default")?.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "log_level_application")?
-            .to_string(),
+            .literal_with_defaults("application", "log_level_application")?.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "log_level_other")?
-            .to_string(),
+            .literal_with_defaults("application", "log_level_other")?.0
     );
     strings.push(
         {
@@ -262,8 +258,7 @@ fn localise_log(
                 PlaceholderValue::String("iced".to_string()),
             );
             localisation.format_with_defaults("application", "log_level_component", &values)?
-        }
-        .to_string(),
+        }.0
     );
     strings.push(
         {
@@ -273,53 +268,44 @@ fn localise_log(
                 PlaceholderValue::String("i18n".to_string()),
             );
             localisation.format_with_defaults("application", "log_level_component", &values)?
-        }
-        .to_string(),
+        }.0
     );
     strings.push(
         localisation
-            .literal_with_defaults("application", "placeholder_log_level")?
-            .to_string(),
+            .literal_with_defaults("application", "placeholder_log_level")?.0
     );
     let default = localisation
-        .literal_with_defaults("word", "default_i")?
-        .to_string();
+        .literal_with_defaults("word", "default_i")?.0.as_str().to_string();
     list.push(default.clone());
     map_to_level.insert(default.clone(), LogLevel::Default);
     map_to_string.insert(LogLevel::Default, default);
     let off = localisation
-        .literal_with_defaults("word", "off_i")?
-        .to_string();
+        .literal_with_defaults("word", "off_i")?.0.as_str().to_string();
     list.push(off.clone());
     map_to_level.insert(off.clone(), LogLevel::Off);
     map_to_string.insert(LogLevel::Off, off);
     let error = localisation
-        .literal_with_defaults("word", "error_i")?
-        .to_string();
+        .literal_with_defaults("word", "error_i")?.0.as_str().to_string();
     list.push(error.clone());
     map_to_level.insert(error.clone(), LogLevel::Error);
     map_to_string.insert(LogLevel::Error, error);
     let warning = localisation
-        .literal_with_defaults("word", "warning_i")?
-        .to_string();
+        .literal_with_defaults("word", "warning_i")?.0.as_str().to_string();
     list.push(warning.clone());
     map_to_level.insert(warning.clone(), LogLevel::Warn);
     map_to_string.insert(LogLevel::Warn, warning);
     let information = localisation
-        .literal_with_defaults("word", "information_i")?
-        .to_string();
+        .literal_with_defaults("word", "information_i")?.0.as_str().to_string();
     list.push(information.clone());
     map_to_level.insert(information.clone(), LogLevel::Info);
     map_to_string.insert(LogLevel::Info, information);
     let debug = localisation
-        .literal_with_defaults("word", "debug_i")?
-        .to_string();
+        .literal_with_defaults("word", "debug_i")?.0.as_str().to_string();
     list.push(debug.clone());
     map_to_level.insert(debug.clone(), LogLevel::Debug);
     map_to_string.insert(LogLevel::Debug, debug);
     let trace = localisation
-        .literal_with_defaults("word", "trace_i")?
-        .to_string();
+        .literal_with_defaults("word", "trace_i")?.0.as_str().to_string();
     list.push(trace.clone());
     map_to_level.insert(trace.clone(), LogLevel::Trace);
     map_to_string.insert(LogLevel::Trace, trace);

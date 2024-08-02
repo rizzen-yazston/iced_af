@@ -32,7 +32,7 @@ pub enum Index {
 #[derive(Debug)]
 pub struct Strings {
     language_tag: RefCount<LanguageTag>,
-    strings: Vec<String>,
+    strings: Vec<RefCount<String>>,
 }
 
 impl Strings {
@@ -78,7 +78,7 @@ impl LocalisedTrait for Strings {
 
 fn localise(
     localisation: &Localisation,
-) -> Result<(RefCount<LanguageTag>, Vec<String>), CoreError> {
+) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
     let title = {
         #[cfg(target_os = "macos")]
@@ -94,10 +94,9 @@ fn localise(
             "application".to_string(),
             PlaceholderValue::String(APPLICATION_NAME_SHORT.to_string()),
         );
-        values.insert("window".to_string(), PlaceholderValue::TaggedString(name));
+        values.insert("window".to_string(), PlaceholderValue::Localised(name.0, name.1));
         localisation.format_with_defaults("application", "window_title_format", &values)?
-    }
-    .to_string();
+    }.0;
     let confirm_exit = {
         #[cfg(target_os = "macos")]
         {
@@ -115,8 +114,7 @@ fn localise(
 
         #[cfg(not(target_os = "macos"))]
         localisation.literal_with_defaults("application", "confirm_exit_question")?
-    }
-    .to_string();
+    }.0;
     let exit = {
         #[cfg(target_os = "macos")]
         {
@@ -132,10 +130,8 @@ fn localise(
 
         #[cfg(not(target_os = "macos"))]
         localisation.literal_with_defaults("word", "exit_i")?
-    }
-    .to_string();
+    }.0;
     let cancel = localisation
-        .literal_with_defaults("word", "cancel_i")?
-        .to_string();
+        .literal_with_defaults("word", "cancel_i")?.0;
     Ok((language_tag, vec![title, confirm_exit, exit, cancel]))
 }

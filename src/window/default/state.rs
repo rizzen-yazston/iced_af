@@ -8,7 +8,7 @@ use crate::{
         traits::{AnyWindowTrait, WindowTrait},
     },
     localisation,
-    window::{about, fatal_error, default::menu_bar, preferences},
+    window::{about, default::menu_bar, preferences},
 };
 use iced::{
     widget::{column, text},
@@ -19,10 +19,17 @@ use std::any::Any;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+// Temporary testing content
+// Uncomment to test FatalError window
+//use crate::window::fatal_error;
+
 #[derive(Debug, Clone)]
 pub enum Message {
     MenuBar(menu_bar::Message),
-    FatalError,
+
+    // Temporary testing content
+    // Uncomment to test FatalError window
+    //FatalError,
 }
 
 pub struct State {}
@@ -62,7 +69,7 @@ impl WindowTrait for State {
         let reverse_lines = localisation.layout_data().reverse_lines;
         //let common = string_cache.get(&WindowType::MainCommon).unwrap();
         //let common_actual = common.as_any().downcast_ref::<main_common::Strings>().unwrap();
-        //let strings = string_cache.get(&WindowType::Placeholder).unwrap();
+        //let strings = string_cache.get(&StringGroup::Default).unwrap();
         //let actual = strings.as_any().downcast_ref::<Strings>().unwrap();
         let mut content: Vec<Element<application::Message>> =
             Vec::<Element<application::Message>>::new();
@@ -100,7 +107,7 @@ impl WindowTrait for State {
             .into()
     }
 
-    fn reusable(&self) -> bool {
+    fn is_reusable(&self) -> bool {
         true
     }
 }
@@ -140,17 +147,20 @@ pub fn try_update(
         application::Message::Default(id, main_message) => match main_message {
             Message::MenuBar(menubar_message) => match menubar_message {
                 menu_bar::Message::None => {} // No action.
-                menu_bar::Message::Open(
-                    id,
-                    window_type
-                ) => tasks = application.open_thread(id, window_type)?,
+                menu_bar::Message::New(window_type) => tasks = application.open_thread(window_type)?,
+                //menu_bar::Message::Open(window_type) => tasks = application.open_thread(window_type)?,
                 menu_bar::Message::Exit => tasks = application.close_thread(id)?,
                 menu_bar::Message::Preferences => tasks = preferences::display(application, id)?,
                 menu_bar::Message::About => tasks = about::display(application, id)?,
             },
+
+            // Temporary testing content
+            // Uncomment to test FatalError window
+            /*
             Message::FatalError => {
                 tasks = fatal_error::display(application, ApplicationError::DatabaseAlreadyOpen)
             }
+            */
         },
         _ => {}
     }

@@ -10,7 +10,6 @@ use i18n::utility::LanguageTag;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
-
 use std::any::Any;
 
 #[cfg(not(feature = "sync"))]
@@ -22,9 +21,10 @@ use std::sync::Arc as RefCount;
 
 pub enum Index {
     Title,
+    //UnsavedData,
     Save,
-    Close,
-    CloseAll,
+    Discard,
+    Cancel,
 }
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ impl AnyLocalisedTrait for Strings {
 impl LocalisedTrait for Strings {
     fn try_update(&mut self, localisation: &Localisation) -> Result<(), CoreError> {
         if self.language_tag != localisation.default_language().into() {
-            debug!("Updating Main UI localisation.");
+            debug!("Updating UnsavedData UI localisation.");
 
             let (language_tag, strings) = localise(
                 localisation,
@@ -82,17 +82,19 @@ fn localise(
     localisation: &Localisation,
 ) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
-
-    // File menu
     let title = RefCount::new(String::new()); // Not used, State has the dynamic string
+    /*
+    let unsaved_data = localisation
+        .literal_with_defaults("application", "unsaved_data_statement")?.0;
+    */
     let save = localisation
-        .literal_with_defaults("word", "save_i")?.0;
-    let close = localisation
-        .literal_with_defaults("word", "close_i")?.0;
-    let close_all = localisation
-        .literal_with_defaults("application", "close_all")?.0;
+        .literal_with_defaults("word", "save_i")?.0;//"application", "save_and_close"
+    let discard = localisation
+        .literal_with_defaults("word", "discard_i")?.0;//"application", "discard_and_close"
+    let cancel = localisation
+        .literal_with_defaults("word", "cancel_i")?.0;
     Ok((
         language_tag,
-        vec![title, save, close, close_all],
+        vec![title, /*unsaved_data, */save, discard, cancel],
     ))
 }

@@ -22,16 +22,17 @@ use iced::{
     widget::{button, column, row,},
     window, Task, Element, Length as Length,
 };
-use std::{
-    any::Any,
-    rc::Rc as RefCount,
-};
+
+#[cfg(feature = "iced_aw")]
+use crate::iced_aw::widgets::sidebar::{self, SidebarWithContent, TabLabel};
 
 #[cfg(not(feature = "iced_aw"))]
 use iced_aw::widgets::sidebar::{self, SidebarWithContent, TabLabel};
 
-#[cfg(feature = "iced_aw")]
-use crate::iced_aw::widgets::sidebar::{self, SidebarWithContent, TabLabel};
+use std::{
+    any::Any,
+    rc::Rc as RefCount,
+};
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
@@ -265,7 +266,7 @@ impl WindowTrait for State {
             .into()
     }
 
-    fn global_disable(&self) -> bool {
+    fn is_global_disable(&self) -> bool {
         true
     }
 }
@@ -354,6 +355,17 @@ pub fn try_update(
                                         .downcast_ref::<Strings>()
                                         .unwrap();
                                     actual.logs.update(actual_strings);
+                                }
+
+                                // Update main windows, usually the dynamic title strings.
+                                {
+                                    let list = application.manager.thread_list();
+                                    for thread_id in list {
+                                        let Some(&mut ref mut state) = application.manager.state_mut(&thread_id) else {
+                                            return Err(CoreError::WindowIdNotFound(id, "window_states".to_string()))?;
+                                        };
+                                        state.try_localise(&application.localisation)?;
+                                    }
                                 }
                             }
                         }
@@ -444,6 +456,7 @@ pub fn try_update(
                         _update = actual.language_changed();
                     }
                     if _update {
+                        // Reset back to session's language.
                         {
                             let tag = match application
                                 .localisation
@@ -459,10 +472,23 @@ pub fn try_update(
                             };
                             let _ = application.localisation.change_default_language(tag)?;
                         }
+
+                        // Update all windows localisation strings
                         {
                             let _ = application
                                 .string_cache
                                 .try_update(&application.localisation)?;
+                        }
+
+                        // Update main windows, usually the dynamic title strings.
+                        {
+                            let list = application.manager.thread_list();
+                            for thread_id in list {
+                                let Some(&mut ref mut state) = application.manager.state_mut(&thread_id) else {
+                                    return Err(CoreError::WindowIdNotFound(id, "window_states".to_string()))?;
+                                };
+                                state.try_localise(&application.localisation)?;
+                            }
                         }
                     }
                     task = close(application, id)?

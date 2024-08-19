@@ -25,6 +25,7 @@ use std::sync::Arc as RefCount;
 pub enum Index {
     Title,
     File,
+    New,
     Open,
     Edit,
     Preferences,
@@ -84,10 +85,13 @@ fn localise(
 ) -> Result<(RefCount<LanguageTag>, Vec<RefCount<String>>), CoreError> {
     let language_tag = localisation.default_language();
 
-    // File menu
     let title = RefCount::new(String::new()); // Not used.
+
+    // File menu
     let file_ = localisation
         .literal_with_defaults("word", "file_i")?.0;
+    let new = localisation
+        .literal_with_defaults("word", "new_i")?.0;
     let open = localisation
         .literal_with_defaults("word", "open_i")?.0;
 
@@ -112,6 +116,6 @@ fn localise(
 
     Ok((
         language_tag,
-        vec![title, file_, open, edit, preferences, help, about],
+        vec![title, file_, new, open, edit, preferences, help, about],
     ))
 }

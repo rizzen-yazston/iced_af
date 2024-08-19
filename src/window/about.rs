@@ -166,11 +166,11 @@ impl WindowTrait for State {
             .into()
     }
 
-    fn reusable(&self) -> bool {
+    fn is_reusable(&self) -> bool {
         true
     }
 
-    fn global_disable(&self) -> bool {
+    fn is_global_disable(&self) -> bool {
         true
     }
 }

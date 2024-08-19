@@ -1,4 +1,4 @@
-= Changelog
+﻿= Changelog
 Rizzen Yazston
 
 == iced_af 0.4.0 (2024-??-??)
@@ -9,9 +9,13 @@ WARNING: Major breaking changes resulting from using `iced` 0.13.0 and `iced_aw`
 
 * Almost every file was affected by the replacement components of `iced` and redesign of the framework.
 
-* Changes localisation files to use `RefCount<String>` instead of `String`, with the exception of `combo_box::State::new()` in `preferences.rs` requiring `String` to be passed.
+* Changed localisation files to use `RefCount<String>` instead of `String`, with the exception of `combo_box::State::new()` in `preferences.rs` requiring `String` to be passed.
 
-* `i18n-rizzen-yazston` was also bumped to 0.10.0. 
+* `i18n-rizzen-yazston` was also bumped to 0.10.0.
+
+* Added generic unsaved data dialogue window.
+
+* Added filename to main and unsaved data windows' titles, to identify main windows that are opened.
 
 == iced_af 0.3.0 (2024-04-11)
 

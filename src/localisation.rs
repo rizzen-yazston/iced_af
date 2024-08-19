@@ -11,3 +11,5 @@ pub mod main_common; // For common localisation.
 pub mod default;
 pub mod main;
 pub mod preferences;
+pub mod unsaved_data;
+

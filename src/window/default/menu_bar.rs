@@ -43,14 +43,14 @@ use log::{debug, error, info, trace, warn};
 #[derive(Debug, Clone)]
 pub enum Message {
     None, // Used for the menu bar button, and buttons that open sub menus to the side.
-    Open(window::Id, WindowType),
+    New(WindowType),
+    //Open(WindowType),
     Exit,
     Preferences,
     About,
-    //Connect,
 }
 
-pub fn view(id: window::Id, string_cache: &StringCache) -> Element<'_, Message> {
+pub fn view(_id: window::Id, string_cache: &StringCache) -> Element<'_, Message> {
     let default = string_cache.get(&StringGroup::Default).unwrap();
     let common = string_cache.get(&StringGroup::MainCommon).unwrap();
     let menu_type_1 = |items| Menu::new(items).max_width(180.0).offset(15.0).spacing(5.0);
@@ -66,9 +66,15 @@ pub fn view(id: window::Id, string_cache: &StringCache) -> Element<'_, Message> 
             labeled_button(common.string(main_common::Index::File as usize), Message::None),
             menu_type_1(menu_items!(
                 (labeled_button(
-                    common.string(main_common::Index::Open as usize),
-                    Message::Open(id, WindowType::Main)
+                    common.string(main_common::Index::New as usize),
+                    Message::New(WindowType::Main)
                 ))
+                /*
+                (labeled_button(
+                    common.string(main_common::Index::Open as usize),
+                    Message::Open(WindowType::Main)
+                ))
+                */
                 (separator())
                 (labeled_button(default.string(default::Index::Exit as usize), Message::Exit))
             ))

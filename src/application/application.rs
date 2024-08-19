@@ -24,6 +24,7 @@ use crate::{
         fatal_error,
         main,
         preferences,
+        unsaved_data,
     },
 };
 use clap::Parser;
@@ -48,12 +49,14 @@ pub enum Message {
 
     // Generic application messages
     Initialise, // Continue with initialising once application state instance exists.
-    WindowOpened(window::Id), // Prepare to insert state.
-    WindowClosed(window::Id), // Remove the state.
+    WindowOpened(window::Id, usize), // Prepare to insert state.
     FatalErrorOpened(window::Id), // Prepare to spawn fatal window.
+    WindowClosed(window::Id), // Remove the state.
+    ThreadClosed(window::Id), // Remove all the states of the thread, Id can be any window of the thread.
     Exit,  // Save settings and exit.
     Terminate,         // Terminates application without any saving.
     Close(window::Id), // Generic window close, nothing else is done.
+    UnsavedData(window::Id, unsaved_data::Message),
 
     // Application window specific messages
     Default(window::Id, default::Message),
@@ -216,9 +219,9 @@ impl State {
                         }
                         WindowType::Main => {
                             debug!("Main window's decoration button was pressed.");
-                            task = self.close_thread(id)?
+                            task = main::try_to_close(self, id)?
                         }
-                        WindowType::FatalError => task = iced::exit(),
+                        WindowType::FatalError => task = iced::exit(), // Session is not saved.
                         WindowType::Preferences => task = preferences::cancel_and_close(self, id)?,
 
                         // Generic window close
@@ -263,12 +266,19 @@ impl State {
                 println!("Initialise has completed."); // Keep both these line
                 info!("Initialise has completed."); // Keep both these line
             },
-            Message::WindowOpened(id) => self.manager.window_opened(id),
-            Message::WindowClosed(id) => self.manager.window_closed(id)?,
+            Message::WindowOpened(id, index) => self.manager.window_opened(id, index),
             Message::FatalErrorOpened(id) => self.manager.fatal_error_opened(id),
+            Message::WindowClosed(id) => self.manager.window_closed(id)?,
+            Message::ThreadClosed(id) => {
+                self.manager.thread_closed(id)?;
+                if self.manager.thread_count() == 0 {
+                    task = default::display(self)?;
+                }
+            }
             Message::Exit => task = self.exit(),
             Message::Terminate => task = iced::exit(),
             Message::Close(id) => task = self.manager.close(id)?,
+            Message::UnsavedData(_, _) => task = unsaved_data::try_update(self, message)?,
 
             // Application window specific messages
             Message::Default(_, _) => task = default::try_update(self, message)?,
@@ -329,7 +339,7 @@ impl State {
     //
 
     pub fn title(&self, id: window::Id) -> String {
-        if !self.manager.is_spawning() {
+        if self.manager.is_spawning() == 0 {
             let window = self.manager.state(&id).expect(format!("title(): Failed to get state for window id {:?}", id).as_str());
             window.title(&self.string_cache).to_string()
         } else {
@@ -338,7 +348,7 @@ impl State {
     }
 
     pub fn view(&self, id: window::Id) -> Element<Message> {
-        if !self.manager.is_spawning() {
+        if self.manager.is_spawning() == 0 {
             let state = self.manager.state(&id).expect(format!("view(): Failed to get state for window id {:?}", id).as_str());
             let content = state.view(id, &self.localisation, &self.string_cache);
             event_control::Container::new(content, self.manager.is_enabled(&id).unwrap())
@@ -362,16 +372,16 @@ impl State {
     // Opens a new main window thread, for the specified window type.
     pub fn open_thread(
         &mut self,
-        id: window::Id,
         window_type: WindowType,
     ) -> Result<Task<Message>, ApplicationError> {
-        debug!("Opening. Threads: {:?}", self.manager.main_threads());
-        let tasks = if self.manager.main_threads() > 1 {
+        debug!("Opening. Threads: {:?}", self.manager.thread_count());
+        let tasks = if self.manager.thread_count() > 1 {
             match window_type {
                 WindowType::Main => main::display(self)?,
                 _ => Task::none(),
             }
         } else {
+            let id = self.manager.thread_list().pop().unwrap();
             let Some(state) = self.manager.state(&id) else {
                 return Err(ApplicationError::Core(CoreError::WindowIdNotFound(
                     id,
@@ -410,12 +420,9 @@ impl State {
         &mut self,
         id: window::Id,
     ) -> Result<Task<Message>, ApplicationError> {
-        debug!("Closing. Threads: {:?}", self.manager.main_threads());
+        debug!("Closing. Threads: {:?}", self.manager.thread_count());
         #[allow(unused_assignments)]
         let mut tasks = Task::none();
-        if self.manager.main_threads() > 1 {
-            tasks = self.manager.close_thread(id)?;
-        } else {
             let Some(state) = self.manager.state(&id) else {
                 return Err(ApplicationError::Core(CoreError::WindowIdNotFound(
                     id,
@@ -429,19 +436,38 @@ impl State {
                 }
                 _ => {
                     trace!("Not default window.");
-                    tasks = self.manager.close_thread(id)?;
-                    tasks.chain(default::display(self)?)
+                    self.manager.close_thread(id)?
                 }
             };
-        }
         Ok(tasks)
     }
 
     // Save the session, and terminate the application.
+    //
+    // Note: Unsaved data is not saved.
     pub fn exit(
         &mut self,
     ) -> Task<Message> {
         let _ = self.session.save();
         iced::exit()
+    }
+
+    // Attempt to close all threads.
+    //
+    // Any window that has unsaved data will produce a dialogue for that window.
+    pub fn close_all(
+        &mut self,
+    ) -> Result<Task<Message>, ApplicationError> {
+        let mut tasks = Task::none();
+        for id in self.manager.thread_list() {
+            let Some(state) = self.manager.state(&id) else {
+                return Err(CoreError::WindowIdNotFound(id, "window_states".to_string()))?;
+            };
+            match state.window_type() {
+                WindowType::Main => tasks = tasks.chain(main::try_to_close(self, id)?),
+                _ => return Err(CoreError::InvalidWindowTypeMain(state.window_type()))?,
+            }
+        }
+        Ok(tasks)
     }
 }

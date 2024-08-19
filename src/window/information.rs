@@ -19,15 +19,15 @@ use std::{
     collections::HashMap,
 };
 
-#[allow(unused_imports)]
-use log::{debug, error, info, trace, warn};
-
 #[cfg(not(feature = "sync"))]
 use std::rc::Rc as RefCount;
 
 #[cfg(feature = "sync")]
 #[cfg(target_has_atomic = "ptr")]
 use std::sync::Arc as RefCount;
+
+#[allow(unused_imports)]
+use log::{debug, error, info, trace, warn};
 
 pub struct State {
     information_type: InformationType,
@@ -37,9 +37,9 @@ pub struct State {
 
 impl State {
     pub fn try_information(
+        localisation: &Localisation,
         title: String,
         message: String,
-        localisation: &Localisation,
         strings: &Strings,
     ) -> Result<State, ApplicationError> {
         let title = {
@@ -63,9 +63,9 @@ impl State {
     }
 
     pub fn try_warning(
+        localisation: &Localisation,
         title: String,
         message: String,
-        localisation: &Localisation,
         strings: &Strings,
     ) -> Result<State, ApplicationError> {
         let title = {
@@ -89,9 +89,9 @@ impl State {
     }
 
     pub fn try_error(
+        localisation: &Localisation,
         title: String,
         message: String,
-        localisation: &Localisation,
         strings: &Strings,
     ) -> Result<State, ApplicationError> {
         let title = {
@@ -206,13 +206,13 @@ pub fn display(
     let actual = strings.as_any().downcast_ref::<Strings>().unwrap();
     let state = match information_type {
         InformationType::Information => {
-            State::try_information(title, message, &application.localisation, actual)
+            State::try_information(&application.localisation, title, message, actual)
         }
         InformationType::Warning => {
-            State::try_warning(title, message, &application.localisation, actual)
+            State::try_warning(&application.localisation, title, message, actual)
         }
         InformationType::Error => {
-            State::try_error(title, message, &application.localisation, actual)
+            State::try_error(&application.localisation, title, message, actual)
         }
     }?;
     Ok(application

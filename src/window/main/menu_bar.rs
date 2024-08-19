@@ -1,6 +1,7 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
+
 use crate::{
     application::{StringGroup, WindowType},
     core::localisation::StringCache,
@@ -43,8 +44,10 @@ use log::{debug, error, info, trace, warn};
 #[derive(Debug, Clone)]
 pub enum Message {
     None, // Used for the menu bar button, and buttons that open sub menus to the side.
-    Open(window::Id, WindowType),
+    New(WindowType),
+    //Open(WindowType),
     Close(window::Id),
+    CloseAll,
     Preferences,
     About,
 }
@@ -65,11 +68,18 @@ pub fn view(id: window::Id, string_cache: &StringCache) -> Element<'_, Message> 
             labeled_button(common.string(main_common::Index::File as usize), Message::None),
             menu_type_1(menu_items!(
                 (labeled_button(
-                    common.string(main_common::Index::Open as usize),
-                    Message::Open(id, WindowType::Main)
+                    common.string(main_common::Index::New as usize),
+                    Message::New(WindowType::Main)
                 ))
+                /*
+                (labeled_button(
+                    common.string(main_common::Index::Open as usize),
+                    Message::Open(WindowType::Main)
+                ))
+                */
                 (separator())
                 (labeled_button(main.string(main::Index::Close as usize), Message::Close(id)))
+                (labeled_button(main.string(main::Index::CloseAll as usize), Message::CloseAll))
             ))
         )
 

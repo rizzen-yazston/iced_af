@@ -26,7 +26,6 @@ pub enum WindowType {
     Main,
 
     // Application windows
-    //Connect,
 }
 
 impl WindowType {
@@ -44,8 +43,8 @@ impl WindowType {
 
             // Main windows
             WindowType::Main => "Main",
+
             // Application windows
-            //WindowType::Connect => "Connect",
         }
     }
 }
@@ -66,7 +65,6 @@ pub enum StringGroup {
     Main,
 
     // Application windows
-    //Connect
 }
 
 impl StringGroup {

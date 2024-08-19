@@ -42,10 +42,12 @@ pub trait AnyWindowTrait: Any + WindowTrait {
 
 /// Trait for basic window methods.
 pub trait WindowTrait {
-    fn window_type(&self) -> WindowType;
-
+    // `iced` specific methods
+    /// Returns a string for the window title bar (contains the windows decorations).
     fn title<'a>(&'a self, string_cache: &'a StringCache) -> &String;
 
+    /// The update method called by the applications main `update()` function to handle messages
+    /// and update the state. Also supports errors being returned.
     #[allow(unused_variables)]
     fn try_update(
         &mut self,
@@ -55,6 +57,8 @@ pub trait WindowTrait {
         Ok(Task::none())
     }
 
+    /// The view method called by the applications main `view()` function to build the window
+    /// of widgets.
     fn view<'a>(
         &'a self,
         id: window::Id,
@@ -62,17 +66,50 @@ pub trait WindowTrait {
         string_cache: &'a StringCache,
     ) -> Element<'_, Message, Theme, Renderer>;
 
+    /// The scaling factor to be used for the window.
     fn scale_factor(&self) -> f64 {
         1.0
     }
 
-    fn reusable(&self) -> bool {
+    // `iced_af` specific methods
+    /// Obtains the type of the window.
+    fn window_type(&self) -> WindowType;
+
+    /// Indicates whether the state can be reused, in that it can be cached for later reuse,
+    /// thus saving the need to recreate the state. Useful for frequent used windows.
+    fn is_reusable(&self) -> bool {
         false
     }
 
-    fn global_disable(&self) -> bool {
+    /// Indicates whether the window being displayed disables all windows or just the parent
+    /// window of the window thread.
+    fn is_global_disable(&self) -> bool {
         false
     }
+
+    /// Try to update dynamic localised strings stored in the state itself.
+    /// 
+    /// Note: All data must be present within the state, that is required for the updating
+    /// of the localised strings 
+    #[allow(unused_variables)]
+    fn try_localise(
+        &mut self,
+        localisation: &Localisation,
+    ) -> Result<(), ApplicationError> {
+        Ok(())
+    }
+}
+
+/// Trait of methods to be implemented for window states having saveable data.
+pub trait SaveDataTrait {
+    /// Instruct the window state to save the data of the state.
+    fn try_save(&mut self) -> Result<(), ApplicationError>;
+
+    /// Indicates whether there is unsaved data of the state.
+    fn is_unsaved(&self) -> bool;
+
+    /// Identifier for the window. Usually it is a filename or database name.
+    fn name(&self) -> &str;
 }
 
 //

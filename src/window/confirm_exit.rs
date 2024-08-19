@@ -93,11 +93,11 @@ impl WindowTrait for State {
             .into()
     }
 
-    fn reusable(&self) -> bool {
+    fn is_reusable(&self) -> bool {
         true
     }
 
-    fn global_disable(&self) -> bool {
+    fn is_global_disable(&self) -> bool {
         true
     }
 }
@@ -105,10 +105,7 @@ impl WindowTrait for State {
 pub fn display(
     application: &mut application::State,
     parent: window::Id,
-    //message: &str,
 ) -> Result<Task<application::Message>, ApplicationError> {
-    //debug!("{}", message);
-//
     if !application
         .string_cache
         .exists(&StringGroup::ConfirmExit)

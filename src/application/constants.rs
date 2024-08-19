@@ -82,7 +82,7 @@ pub static WINDOW_DEFAULT_DATA: phf::Map<&str, WindowDefaultsData> = phf_map! {
         maximise: false,
     },
     "UnsavedData" => WindowDefaultsData {
-        size: (320f32, 120f32),
+        size: (450f32, 120f32),
         size_max: (500f32, 120f32),
         size_min: (300f32, 120f32),
         resizable: false,
@@ -112,6 +112,7 @@ pub static WINDOW_DEFAULT_DATA: phf::Map<&str, WindowDefaultsData> = phf_map! {
 
 };
 
+#[derive(Debug)]
 pub struct WindowDefaultsData {
     pub size: (f32, f32),
     pub size_max: (f32, f32),

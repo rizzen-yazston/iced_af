@@ -9,4 +9,5 @@ pub mod fatal_error;
 pub mod information;
 pub mod default;
 pub mod main;
+pub mod unsaved_data;
 pub mod preferences;

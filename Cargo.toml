@@ -47,6 +47,7 @@ clap = { version = "4.5.11", features = [ "derive" ]}
 ron = { version = "0.8.1"}
 
 # Optional dependendies
+chrono = {version = "0.4.38" }
 
 [[bin]]
 name = "example"

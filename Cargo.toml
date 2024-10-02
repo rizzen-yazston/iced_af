@@ -30,11 +30,11 @@ iced_aw = []
 i18n-rizzen-yazston = { version = "0.10.0", features = [ "icu_compiled_data", "logging" ] }
 icu_locid = { version = "1.5.0" }
 icu_locid_transform = { version = "1.5.0" }
-#iced_aw = { version = "0.8.0", features = [ "menu", "quad", "sidebar", ] }
-iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "main", features = [ "menu", "quad", "sidebar" ] }
+iced_aw = { version = "0.11.0", features = [ "menu", "quad", "sidebar", ] }
+#iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "main", features = [ "menu", "quad", "sidebar" ] }
 #iced_aw = { path = "../contributor/iced_aw", features = [ "menu", "quad", "sidebar" ] }
-#iced = { version = "0.12.0", features = [ "multi-window", "advanced", ] }
-iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
+iced = { version = "0.13.0", features = [ "multi-window", "advanced", ] }
+#iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
 #iced = { path = "../contributor/iced", features = [ "multi-window", "advanced" ] }
 dirs = "5.0.1"
 rusqlite = "0.32.1"

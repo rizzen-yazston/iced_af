@@ -10,7 +10,6 @@ use crate::{
 };
 use i18n::utility::{LanguageTag, LocalisationTrait, PlaceholderValue};
 
-#[cfg(feature = "log")]
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 use std::{any::Any, collections::HashMap};

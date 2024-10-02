@@ -16,12 +16,12 @@ categories = [ "rust-pattern" ]
 
 [features]
 # Specify any application feature defaults here.
-default = [ "iced_aw" ]
+default = [] # [], [ "iced_aw" ]
 
 # Will allow for multithreaded concurrency, remember to add crates that support sync features.
 sync = [ "i18n-rizzen-yazston/sync", ]
 
-# Will use the embedded `iced_aw` components. This helps those having cargo cache issues 
+# Will use the embedded `iced_aw` components. This helps those having cargo cache issues when
 # using main branch of `iced_aw` with master branch of `iced`.
 iced_aw = []
 
@@ -33,6 +33,7 @@ icu_locid_transform = { version = "1.5.0" }
 iced_aw = { version = "0.11.0", features = [ "menu", "quad", "sidebar", ] }
 #iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "main", features = [ "menu", "quad", "sidebar" ] }
 #iced_aw = { path = "../contributor/iced_aw", features = [ "menu", "quad", "sidebar" ] }
+iced_fonts = { version = "0.1.0", feature = [ "required" ] } # Change to include more font options.
 iced = { version = "0.13.0", features = [ "multi-window", "advanced", ] }
 #iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
 #iced = { path = "../contributor/iced", features = [ "multi-window", "advanced" ] }

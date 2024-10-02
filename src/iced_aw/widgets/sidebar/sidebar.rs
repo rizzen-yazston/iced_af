@@ -8,12 +8,13 @@
 //! and it manages the displaying of the content.
 
 use super::column::FlushColumn;
-use crate::iced_aw::{
-    core::icons::{bootstrap::icon_to_string, Bootstrap, BOOTSTRAP_FONT},
-    style::{
-        sidebar::{self, Catalog, Style},
-        Status, StyleFn,
-    },
+use crate::iced_aw::style::{
+    sidebar::{self, Catalog, Style},
+    Status, StyleFn,
+};
+use iced_fonts::{
+    required::{icon_to_string, RequiredIcons},
+    REQUIRED_FONT,
 };
 use iced::{
     advanced::{
@@ -30,7 +31,7 @@ use iced::{
     mouse::{self, Cursor},
     touch,
     widget::{
-        text::{self, LineHeight},
+        text::{self, LineHeight, Wrapping},
         Row, Text,
     },
     Alignment, Background, Border, Color, Element, Event, Font, Length, Pixels, Point, Rectangle,
@@ -635,7 +636,7 @@ where
                 &self.class,
                 i == self.get_active_tab_idx(),
                 cursor,
-                (self.font.unwrap_or(BOOTSTRAP_FONT), self.icon_size),
+                (self.font.unwrap_or(REQUIRED_FONT), self.icon_size),
                 (self.text_font.unwrap_or_default(), self.text_size),
                 self.close_size,
                 viewport,
@@ -706,6 +707,7 @@ fn draw_tab<Theme, Renderer>(
                         vertical_alignment: Vertical::Center,
                         line_height: LineHeight::Relative(1.3),
                         shaping: iced::advanced::text::Shaping::Advanced,
+                        wrapping: Wrapping::default(),
                     },
                     Point::new(icon_bounds.center_x(), icon_bounds.center_y()),
                     style.icon_color,
@@ -724,6 +726,7 @@ fn draw_tab<Theme, Renderer>(
                         vertical_alignment: Vertical::Center,
                         line_height: LineHeight::Relative(1.3),
                         shaping: iced::advanced::text::Shaping::Advanced,
+                        wrapping: Wrapping::default(),
                     },
                     Point::new(text_bounds.center_x(), text_bounds.center_y()),
                     style.text_color,
@@ -753,6 +756,7 @@ fn draw_tab<Theme, Renderer>(
                         vertical_alignment: Vertical::Center,
                         line_height: LineHeight::Relative(1.3),
                         shaping: iced::advanced::text::Shaping::Advanced,
+                        wrapping: Wrapping::default(),
                     },
                     Point::new(icon_bounds.center_x(), icon_bounds.center_y()),
                     style.icon_color,
@@ -768,6 +772,7 @@ fn draw_tab<Theme, Renderer>(
                         vertical_alignment: Vertical::Center,
                         line_height: LineHeight::Relative(1.3),
                         shaping: iced::advanced::text::Shaping::Advanced,
+                        wrapping: Wrapping::default(),
                     },
                     Point::new(text_bounds.center_x(), text_bounds.center_y()),
                     style.text_color,
@@ -791,14 +796,15 @@ fn draw_tab<Theme, Renderer>(
         let is_mouse_over_cross = cursor.is_over(cross_bounds);
         renderer.fill_text(
             iced::advanced::text::Text {
-                content: icon_to_string(Bootstrap::X),
+                content: icon_to_string(RequiredIcons::X),
                 bounds: Size::new(cross_bounds.width, cross_bounds.height),
                 size: Pixels(close_size + if is_mouse_over_cross { 1.0 } else { 0.0 }),
-                font: BOOTSTRAP_FONT,
+                font: REQUIRED_FONT,
                 horizontal_alignment: Horizontal::Center,
                 vertical_alignment: Vertical::Center,
                 line_height: LineHeight::Relative(1.3),
                 shaping: iced::advanced::text::Shaping::Basic,
+                wrapping: Wrapping::default(),
             },
             Point::new(cross_bounds.center_x(), cross_bounds.center_y()),
             style.text_color,

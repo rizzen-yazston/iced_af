@@ -189,7 +189,6 @@ where
     }
 
     /// Sets the style class of the [`Container`].
-    #[cfg(feature = "advanced")]
     #[must_use]
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.class = class.into();
@@ -468,6 +467,7 @@ pub fn visible_bounds(id: Id) -> Task<Option<Rectangle>> {
             _state: &mut dyn widget::operation::Scrollable,
             _id: Option<&widget::Id>,
             bounds: Rectangle,
+            _content_bounds: Rectangle,
             translation: Vector,
         ) {
             match self.scrollables.last() {

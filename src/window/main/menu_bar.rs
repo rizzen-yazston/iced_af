@@ -17,7 +17,7 @@ use iced::{
 
 #[cfg(not(feature = "iced_aw"))]
 use iced_aw::{
-    menu::{Item, Menu},
+    menu::{self, Item, Menu},
     menu_bar, menu_items,
     widgets::InnerBounds,
     quad,

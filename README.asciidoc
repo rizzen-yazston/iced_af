@@ -23,8 +23,6 @@ The following features are available:
 
 * `iced_aw`: This is only used when there is a cargo cache issue as a result of using the `iced` master branch with the `iced_aw` main branch. It is simply a copy of the `iced_aw` components used by this project.
 
-In the `Cargo.toml` there is two `default` lines, one being commented out. One enables all the features, while the other enables none.
-
 == What is included
 
 The application framework has the following capabilities:

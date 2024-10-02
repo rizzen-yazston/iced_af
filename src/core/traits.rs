@@ -11,7 +11,6 @@ use crate::{
         error::CoreError,
         localisation::{Localisation, StringCache},
     },
-    iced_aw::widgets::sidebar::TabLabel,
 };
 use core::fmt::Debug;
 use i18n::utility::LanguageTag;
@@ -20,11 +19,16 @@ use iced::{
     widget::{Column, Container, Text},
     window, Task, Element, Length, Renderer, Theme,
 };
-//use iced_aw::sidebar::TabLabel;
 use std::{
     any::Any,
     rc::Rc as RefCount,
 };
+
+#[cfg(feature = "iced_aw")]
+use crate::iced_aw::widgets::sidebar::TabLabel;
+
+#[cfg(not(feature = "iced_aw"))]
+use iced_aw::sidebar::TabLabel;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};

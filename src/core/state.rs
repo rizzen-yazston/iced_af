@@ -158,13 +158,13 @@ impl Manager {
         }
 
         // Set `iced` window settings, and spawn
-        let task = spawn(session, state.window_type())?;
+        let id = spawn(session, state.window_type())?;
 
         // Prepare to insert state once window is opened
         let len = self.new_entries.count;
         self.new_entries.push(Entry {state, enabled: true, parent: None, disabled: None});
         trace!("spawn thread: len: {:?}", self.new_entries.count);
-        Ok(task.map(move |id| Message::WindowOpened(id, len)))
+        Ok(id.1.map(move |id| Message::WindowOpened(id, len)))
     }
 
     /// Spawn a window on an existing main window thread, using the provided `iced` window
@@ -197,7 +197,7 @@ impl Manager {
         let len = self.new_entries.count;
         self.new_entries.push(Entry {state, enabled: true, parent, disabled: Some(disabled)});
         trace!("spawn window: len: {:?}", self.new_entries.count);
-        Ok(id.map(move |id| Message::WindowOpened(id, len)))
+        Ok(id.1.map(move |id| Message::WindowOpened(id, len)))
     }
 
     /// Obtain reusable state if available, for the specified window type.
@@ -233,7 +233,7 @@ impl Manager {
         // Prepare to insert state once window is opened
         let len = self.new_entries.count;
         self.new_entries.push(Entry {state, enabled: true, parent: None, disabled: None});
-        id.map(move |id| Message::WindowOpened(id, len))
+        Task::done(Message::WindowOpened(id.0, len))
     }
 
     pub fn window_opened(&mut self, id: window::Id, index: usize) {
@@ -439,7 +439,7 @@ impl Manager {
 fn spawn(
     session: &mut Session,
     window_type: WindowType,
-) -> Result<Task<window::Id>, CoreError> {
+) -> Result<(window::Id, Task<window::Id>), CoreError> {
     let Some(defaults) = WINDOW_DEFAULT_DATA.get(&window_type.as_str()) else {
         return Err(CoreError::WindowTypeNotFound(
             window_type,

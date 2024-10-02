@@ -1,11 +1,13 @@
 ﻿= Changelog
 Rizzen Yazston
 
-== iced_af 0.4.0 (2024-??-??)
+== iced_af 0.4.0 (2024-10-02)
 
-WARNING: Major breaking changes resulting from using `iced` 0.13.0 and `iced_aw` 0.10.0.
+WARNING: Major breaking changes resulting from using `iced` 0.13.0, `iced_aw` 0.11.0, and `iced_fonts` 0.1.1.
 
 * Major redesign of the framework to implement the changes done in `iced` since release of 0.12.0, especially affecting the `multi_window` feature of `iced`.
+
+* New crate dependency `iced_fonts`: fonts has been split off from 'iced_aw' starting with version 0.10.0.
 
 * Almost every file was affected by the replacement components of `iced` and redesign of the framework.
 

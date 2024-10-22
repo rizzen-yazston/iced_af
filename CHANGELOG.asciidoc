@@ -1,6 +1,12 @@
 ﻿= Changelog
 Rizzen Yazston
 
+== iced_af 0.4.1 (202?-??-??)
+
+* In `Cargo.toml` changed `rust_pattern` to `rust_patterns`.
+
+* In `src/window/preferences/state.rs` removed old obsolete fields in `Struct`.
+
 == iced_af 0.4.0 (2024-10-02)
 
 WARNING: Major breaking changes resulting from using `iced` 0.13.0, `iced_aw` 0.11.0, and `iced_fonts` 0.1.1.

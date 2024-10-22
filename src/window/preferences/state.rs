@@ -60,10 +60,6 @@ pub enum TabId {
 }
 
 pub struct State {
-    enabled: bool,
-    disable_all: bool,
-    disabled_states: Option<Vec<window::Id>>,
-    parent: Option<window::Id>,
     changed_settings: Option<Vec<Setting>>,
     first_use: bool,
 
@@ -82,10 +78,6 @@ impl State {
     ) -> Result<Self, ApplicationError> {
         let strings = string_cache.get(&StringGroup::Preferences).unwrap();
         Ok(State {
-            enabled: true,
-            disable_all: true,
-            disabled_states: None,
-            parent: None,
             changed_settings: None,
             first_use,
 

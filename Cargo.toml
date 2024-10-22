@@ -12,7 +12,7 @@ license = "BSD-3-Clause"
 readme = "README.asciidoc"
 repository = "https://github.com/rizzen-yazston/iced_af"
 keywords = []
-categories = [ "rust-pattern" ]
+categories = [ "rust-patterns" ]
 
 [features]
 # Specify any application feature defaults here.

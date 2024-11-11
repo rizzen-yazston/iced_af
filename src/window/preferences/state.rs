@@ -284,7 +284,7 @@ pub fn display(
     )?;
     Ok(application
         .manager
-        .try_spawn(&mut application.session, Box::new(state), parent)?)
+        .try_create_window(&mut application.session, Box::new(state), parent)?)
 }
 
 pub fn try_update(
@@ -516,6 +516,6 @@ pub fn close(
         Ok(application.close_thread(id)?)
 
     } else {
-        Ok(application.manager.close(id)?)
+        Ok(application.manager.close_window(id)?)
     }
 }

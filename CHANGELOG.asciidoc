@@ -1,11 +1,37 @@
 ﻿= Changelog
 Rizzen Yazston
 
-== iced_af 0.4.1 (202?-??-??)
+== iced_af 0.4.1 (2021-11-11)
 
 * In `Cargo.toml` changed `rust_pattern` to `rust_patterns`.
 
 * In `src/window/preferences/state.rs` removed old obsolete fields in `Struct`.
+
+* Fixed issue of fatal window not displaying, even though error message went to console.
+
+* Bumped `iced` to 0.13.1.
+
+* Improved the documentation of various files.
+
+* Updated `core/state.rs`:
+
+** When creating windows, the functions now makes immediate use of the `window:Id`, that is returned as `(Id, Task<Id>)` from `window::open(...)`, to insert the window state into registry. No longer require the inserting of state into registry once the window has been opened. That is the state is now available when the window opens.
+
+** Removed the duplicating state removal in `thread_closed()`, as it was already done in `window_closed`, and may resulted in fatal errors.
+
+** Also made function name changes to better reflection the function's purpose. These changes affected `application/application`, and all windows' state files.
+
+** Removed obsolete struct fields and associated functions.
+
+** Corrected `Manager::try_new()` to return `ApplicationError` instead of `CoreError`, in case the default window creation needs to return an error.
+
+* Updated `core/localisation.rs`:
+
+** Changed `StringCache::try_new()` to `StringCache::new()` as no errors are generated.
+
+* Updated `window/main/state.rs`:
+
+** Changed `display(...)` to return `Result<(Task<application::Message>, bool), ApplicationError>` where the bool indicates if main window was created (true), or another window type (such as information window) was created instead (false). Changed affected `application/application.rs` in the `open_thread(...)` function to support the change.
 
 == iced_af 0.4.0 (2024-10-02)
 

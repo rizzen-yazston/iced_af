@@ -20,6 +20,9 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+/// All the persistent session data is located within this struct.
+/// 
+/// Add additional settings to the various structs.
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Session {
     pub settings: Settings,

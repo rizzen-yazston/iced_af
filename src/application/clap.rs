@@ -7,9 +7,11 @@ use crate::application::log::LogLevel;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+/// Specify the various command line options.
 #[derive(Parser, Debug, Clone)]
 #[command( author, version, about, long_about = None )]
 pub struct Clap {
+    /// To override the log levels that are stored in the session.
     #[arg(
         long,
         value_parser = clap::builder::PossibleValuesParser::new(
@@ -21,8 +23,10 @@ pub struct Clap {
     )]
     pub log_level: Option<LogLevel>,
 
+    /// Use the application defaults. Reset session data.
     #[arg(short, long)]
     pub defaults: bool,
+    
     /*
     /// Name of the person to greet
     #[arg(short, long)]

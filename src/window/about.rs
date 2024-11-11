@@ -191,5 +191,5 @@ pub fn display(
     };
     Ok(application
         .manager
-        .try_spawn(&mut application.session, state, parent)?)
+        .try_create_window(&mut application.session, state, parent)?)
 }

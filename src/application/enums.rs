@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+/// The available window types of the application.
 #[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum WindowType {
     Default, // The default main window.
@@ -29,6 +30,7 @@ pub enum WindowType {
 }
 
 impl WindowType {
+    /// Returns the window type name.
     pub fn as_str(&self) -> &str {
         match self {
             WindowType::Default => "Default",
@@ -49,6 +51,10 @@ impl WindowType {
     }
 }
 
+/// The available string groups of the application.
+/// 
+/// Note: there is no need for a 1 to 1 match with window types, as string
+/// groups may be shared between windows.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum StringGroup {
     // Core windows
@@ -68,6 +74,7 @@ pub enum StringGroup {
 }
 
 impl StringGroup {
+    /// Returns the string group name.
     pub fn as_str(&self) -> &str {
         match self {
             // Core windows

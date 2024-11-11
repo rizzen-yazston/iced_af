@@ -217,5 +217,5 @@ pub fn display(
     }?;
     Ok(application
         .manager
-        .try_spawn(&mut application.session, Box::new(state), parent)?)
+        .try_create_window(&mut application.session, Box::new(state), parent)?)
 }

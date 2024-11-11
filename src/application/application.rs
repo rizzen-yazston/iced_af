@@ -30,7 +30,7 @@ use crate::{
 use clap::Parser;
 use core::panic;
 use iced::{
-    event::{self, Event}, widget::Row, window, Element, Length, Point, Size, Subscription, Task,
+    event::{self, Event}, window, Element, Length, Point, Size, Subscription, Task,
 };
 
 #[allow(unused_imports)]
@@ -40,6 +40,8 @@ use log::{debug, error, info, trace, warn};
 // ----- The application supported messages
 //
 
+/// The application's `Message`s. Window specific messages are grouped in their
+/// own `Message` enum, and is an entry of the application `Message` enum.
 #[derive(Debug, Clone)]
 pub enum Message {
     // Window events
@@ -49,16 +51,15 @@ pub enum Message {
 
     // Generic application messages
     Initialise, // Continue with initialising once application state instance exists.
-    WindowOpened(window::Id, usize), // Prepare to insert state.
-    FatalErrorOpened(window::Id), // Prepare to spawn fatal window.
-    WindowClosed(window::Id), // Remove the state.
-    ThreadClosed(window::Id), // Remove all the states of the thread, Id can be any window of the thread.
+    WindowOpened(window::Id), // Indicates window has opened. Optional action be done
+    WindowClosed(window::Id), // Remove the state of closed window Id.
+    ThreadClosed(usize), // Remove the thread, now that windows are closed.
     Exit,  // Save settings and exit.
     Terminate,         // Terminates application without any saving.
     Close(window::Id), // Generic window close, nothing else is done.
-    UnsavedData(window::Id, unsaved_data::Message),
 
     // Application window specific messages
+    UnsavedData(window::Id, unsaved_data::Message),
     Default(window::Id, default::Message),
     Main(window::Id, main::Message),
     Preferences(window::Id, preferences::Message),
@@ -68,11 +69,17 @@ pub enum Message {
 // ----- The application event processing loop
 //
 
+/// The application state is a special state, as it does not have any UI
+/// window, that is the application state is headless. The primary purpose of
+/// this state is to contain the global environment (global data of the
+/// application), the UI localisation, the main message handler (handles global
+/// messages, delegates messages to other window states to update their
+/// states), and the view handler (requesting specific window to be redrawn).
 pub struct State {
     // Indicates that the state is fully initialised.
     initialised: bool,
 
-    // Data that can be persistent
+    // Data that can be persistent.
     pub session: Session,
 
     // Data that can't be persistent
@@ -81,18 +88,18 @@ pub struct State {
     // The localisation system for the UI.
     pub localisation: Localisation,
 
-    // The shared localised strings, static except for language change
+    // The shared localised strings, rather static except when there is language changes.
     pub string_cache: StringCache,
 
-    // The state manager
+    // The state manager containing all the window states.
     pub manager: Manager,
 
-    // Indicates if application is running for the first time
+    // Indicates if application is running for the first time.
     first_use: bool,
 }
 
 impl State {
-    /// Entry point fpr initialising the application state.
+    /// Entry point for initialising the application state.
     pub fn new() -> (State, Task<Message>) {
         match State::try_new() {
             Err(error) => panic!("Application initialisation error: {}", error),
@@ -100,6 +107,7 @@ impl State {
         }
     }
 
+    /// The actual implementation of creating the state.
     fn try_new() -> Result<(State, Task<Message>), ApplicationError> {
         // Use clap for task line options. See clap.rs for various task options.
         let clap = Clap::parse();
@@ -135,19 +143,9 @@ impl State {
         let environment = Environment::try_new(logger, clap)?;
         let localisation =
             Localisation::try_new(&environment, &session.settings.ui.language)?;
-        let string_cache = StringCache::try_new()?;
+        let string_cache = StringCache::new();
         debug!("Localisation initialised.");
-        let mut valid = vec![
-            WindowType::Default,
-            WindowType::Main,
-            // Add other main window types here
-        ];
-        if first_use {
-            valid.push(WindowType::Preferences);
-        }
-        let manager = Manager::try_new(
-            valid, 
-        )?;
+        let manager = Manager::try_new()?;
         debug!("State manager initialised.");
         Ok((
             State {
@@ -163,6 +161,7 @@ impl State {
         ))
     }
 
+    /// Indicates if the application has started for the first time
     pub fn first_use(&self) -> bool {
         self.first_use
     }
@@ -171,6 +170,7 @@ impl State {
     // ------ Update methods
     //
 
+    /// To capture the `iced` window events.
     pub fn subscription(&self) -> Subscription<Message> {
         event::listen_with(
             |event, _status, id| {
@@ -187,6 +187,7 @@ impl State {
         )
     }
 
+    /// The entry point for the `iced` update functionality.
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match self.try_update(message) {
             Err(error) => fatal_error::display(self, error),
@@ -194,11 +195,12 @@ impl State {
         }
     }
 
+    /// The actual implementation of updating the state.
     fn try_update(
         &mut self,
         message: Message,
     ) -> Result<Task<Message>, ApplicationError> {
-        let mut task = Task::none();
+        let mut tasks = Task::none();
         match message {
             // Window events
             Message::CloseRequested(id) => {
@@ -215,22 +217,22 @@ impl State {
                     match state.window_type() {
                         WindowType::Default => {
                             debug!("Default window's decoration button was pressed.");
-                            task = self.close_thread(id)?
+                            tasks = self.close_thread(id)?
                         }
                         WindowType::Main => {
                             debug!("Main window's decoration button was pressed.");
-                            task = main::try_to_close(self, id)?
+                            tasks = main::try_to_close(self, id)?
                         }
-                        WindowType::FatalError => task = iced::exit(), // Session is not saved.
-                        WindowType::Preferences => task = preferences::cancel_and_close(self, id)?,
+                        WindowType::FatalError => tasks = iced::exit(), // Session is not saved.
+                        WindowType::Preferences => tasks = preferences::cancel_and_close(self, id)?,
 
                         // Generic window close
-                        _ => task = self.manager.close(id)?,
+                        _ => tasks = self.manager.close_window(id)?,
                     }
                 }
             }
-            Message::Resized(id, size) => task = self.resized(&id, size)?,
-            Message::Moved(id, point) => task = self.moved(&id, point)?,
+            Message::Resized(id, size) => tasks = self.resized(&id, size)?,
+            Message::Moved(id, point) => tasks = self.moved(&id, point)?,
 
             // Generic application messages
             Message::Initialise => {
@@ -255,43 +257,43 @@ impl State {
                             &self.session.settings,
                             true,
                         )?;
-                        task = self.manager.try_spawn_new_thread(&mut self.session, Box::new(state))?;
-                        debug!("Spawned Preferences window.");
+                        tasks = self.manager.try_create_thread(&mut self.session, Box::new(state))?;
+                        debug!("Opening Preferences window.");
                     } else {
-                        task = default::display(self)?;
-                        debug!("Spawned Default window.");
+                        tasks = default::display(self)?;
+                        debug!("Opening Default window.");
                     }
                     self.initialised = true;
                 }
                 println!("Initialise has completed."); // Keep both these line
                 info!("Initialise has completed."); // Keep both these line
             },
-            Message::WindowOpened(id, index) => self.manager.window_opened(id, index),
-            Message::FatalErrorOpened(id) => self.manager.fatal_error_opened(id),
+            Message::WindowOpened(_id) => {} // Post actions can be place here for the opened window (Id provided)
             Message::WindowClosed(id) => self.manager.window_closed(id)?,
             Message::ThreadClosed(id) => {
                 self.manager.thread_closed(id)?;
                 if self.manager.thread_count() == 0 {
-                    task = default::display(self)?;
+                    tasks = default::display(self)?;
                 }
             }
-            Message::Exit => task = self.exit(),
-            Message::Terminate => task = iced::exit(),
-            Message::Close(id) => task = self.manager.close(id)?,
-            Message::UnsavedData(_, _) => task = unsaved_data::try_update(self, message)?,
+            Message::Exit => tasks = self.exit(),
+            Message::Terminate => tasks = iced::exit(),
+            Message::Close(id) => tasks = self.manager.close_window(id)?,
+            Message::UnsavedData(_, _) => tasks = unsaved_data::try_update(self, message)?,
 
             // Application window specific messages
-            Message::Default(_, _) => task = default::try_update(self, message)?,
-            Message::Main(_, _) => task = main::try_update(self, message)?,
-            Message::Preferences(_, _) => task = preferences::try_update(self, message)?,
+            Message::Default(_, _) => tasks = default::try_update(self, message)?,
+            Message::Main(_, _) => tasks = main::try_update(self, message)?,
+            Message::Preferences(_, _) => tasks = preferences::try_update(self, message)?,
         }
-        Ok(task)
+        Ok(tasks)
     }
 
     //
     // ----- Window geometry methods
     //
 
+    /// Window was resized.
     fn resized(
         &mut self,
         id: &window::Id,
@@ -313,6 +315,7 @@ impl State {
         Ok(Task::none())
     }
 
+    /// Window was moved.
     fn moved(
         &mut self,
         id: &window::Id,
@@ -338,38 +341,28 @@ impl State {
     // ------ Viewing methods
     //
 
+    /// Get the title string for the window.
     pub fn title(&self, id: window::Id) -> String {
-        if self.manager.is_spawning() == 0 {
-            let window = self.manager.state(&id).expect(format!("title(): Failed to get state for window id {:?}", id).as_str());
-            window.title(&self.string_cache).to_string()
-        } else {
-            String::new()
-        }
+        let window = self.manager.state(&id).expect(format!("title(): Failed to get state for window id {:?}", id).as_str());
+        window.title(&self.string_cache).to_string()
     }
 
+    /// The entry point for the `iced` view functionality.
     pub fn view(&self, id: window::Id) -> Element<Message> {
-        if self.manager.is_spawning() == 0 {
-            let state = self.manager.state(&id).expect(format!("view(): Failed to get state for window id {:?}", id).as_str());
-            let content = state.view(id, &self.localisation, &self.string_cache);
-            event_control::Container::new(content, self.manager.is_enabled(&id).unwrap())
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding(0)
-                .into()
-        } else {
-            event_control::Container::new(Element::new(Row::new()), false)
+        let state = self.manager.state(&id).expect(format!("view(): Failed to get state for window id {:?}", id).as_str());
+        let content = state.view(id, &self.localisation, &self.string_cache);
+        event_control::Container::new(content, self.manager.is_enabled(&id).unwrap())
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(0)
             .into()
-        }
     }
 
     //
     // ----- Window opening methods
     //
 
-    // Opens a new main window thread, for the specified window type.
+    /// Opens a new main window thread, for the specified window type.
     pub fn open_thread(
         &mut self,
         window_type: WindowType,
@@ -377,10 +370,21 @@ impl State {
         debug!("Opening. Threads: {:?}", self.manager.thread_count());
         let tasks = if self.manager.thread_count() > 1 {
             match window_type {
-                WindowType::Main => main::display(self)?,
-                _ => Task::none(),
+                // If there are additional main window types, add them.
+                WindowType::Main => {
+                    trace!("open_thread: try to display Main");
+                    let (tasks, _) = main::display(self)?;
+                    tasks
+                }
+                _ => {
+                    trace!("open_thread: error: window type must be Main");
+                    Task::none()
+                }
             }
         } else {
+            // Only 1 thread, which means current window can be Default window,
+            // which would need to be closed on successful opening of a main
+            // window.
             let id = self.manager.thread_list().pop().unwrap();
             let Some(state) = self.manager.state(&id) else {
                 return Err(ApplicationError::Core(CoreError::WindowIdNotFound(
@@ -392,9 +396,15 @@ impl State {
                 WindowType::Default => {
                     trace!("Default window.");
                     match window_type {
+                    	// If there are additional main window types, add them.
                         WindowType::Main => {
-                            let tasks = main::display(self)?;
-                            tasks.chain(self.manager.close_thread(id)?)
+                            trace!("open_thread: try to display Main");
+                            let (mut tasks, success) = main::display(self)?;
+                            if success {
+                                // Have new Main window, close the Default window
+                                tasks = tasks.chain(self.manager.close_thread(id)?);
+                            }
+                            tasks
                         }
                         _ => Task::none(),
                     }
@@ -402,7 +412,11 @@ impl State {
                 _ => {
                     trace!("Not default window.");
                     match window_type {
-                        WindowType::Main => main::display(self)?,
+	                    // If there are additional main window types, add them.
+                        WindowType::Main => {
+                            let (tasks, _) = main::display(self)?;
+                            tasks
+                        }
                         _ => Task::none(),
                     }
                 }
@@ -415,7 +429,7 @@ impl State {
     // ----- Window closing methods
     //
 
-    // Close a thread, and if the last thread and not default, then spawn default, else exit.
+    /// Close a thread, and if the last thread and not default, then spawn default, else exit.
     pub fn close_thread(
         &mut self,
         id: window::Id,
@@ -442,9 +456,9 @@ impl State {
         Ok(tasks)
     }
 
-    // Save the session, and terminate the application.
-    //
-    // Note: Unsaved data is not saved.
+    /// Save the session, and terminate the application.
+    ///
+    /// Note: Unsaved data is not saved.
     pub fn exit(
         &mut self,
     ) -> Task<Message> {
@@ -452,9 +466,9 @@ impl State {
         iced::exit()
     }
 
-    // Attempt to close all threads.
-    //
-    // Any window that has unsaved data will produce a dialogue for that window.
+    /// Attempt to close all threads.
+    ///
+    /// Any window that has unsaved data will produce a dialogue for that window.
     pub fn close_all(
         &mut self,
     ) -> Result<Task<Message>, ApplicationError> {

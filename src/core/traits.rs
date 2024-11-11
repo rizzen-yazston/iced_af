@@ -21,7 +21,7 @@ use iced::{
 };
 use std::{
     any::Any,
-    rc::Rc as RefCount,
+    path::PathBuf,
 };
 
 #[cfg(feature = "iced_aw")]
@@ -32,6 +32,13 @@ use iced_aw::sidebar::TabLabel;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
+
+#[cfg(not(feature = "sync"))]
+use std::rc::Rc as RefCount;
+
+#[cfg(feature = "sync")]
+#[cfg(target_has_atomic = "ptr")]
+use std::sync::Arc as RefCount;
 
 //
 // ----- Window state traits
@@ -114,6 +121,11 @@ pub trait SaveDataTrait {
 
     /// Identifier for the window. Usually it is a filename or database name.
     fn name(&self) -> &str;
+
+    /// Returns a file path if one exists.
+    fn path(&self) -> Option<&PathBuf> {
+        None
+    }
 }
 
 //
@@ -144,13 +156,17 @@ pub trait LocalisedTrait {
 // ----- Tab traits
 //
 
+/// Trait for tabbed content.
 pub trait TabTrait {
+    /// The title of the tab area.
     fn title<'a>(&self, string_cache: &'a StringCache) -> String;
 
+    /// The label on the tab.
     fn tab_label<'a>(&self, string_cache: &'a StringCache) -> TabLabel {
         TabLabel::Text(self.title(string_cache))
     }
 
+    /// To display the tab area.
     fn view<'a>(
         &'a self,
         id: window::Id,
@@ -171,6 +187,7 @@ pub trait TabTrait {
             .into()
     }
 
+    /// The tab content.
     fn content<'a>(
         &'a self,
         id: window::Id,

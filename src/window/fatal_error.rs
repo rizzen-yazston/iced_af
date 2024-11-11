@@ -100,5 +100,5 @@ pub fn display(
             Box::new(Strings::new(&application.localisation, error)),
         );
     }
-    application.manager.spawn_fatal_error(&mut application.session)
+    application.manager.create_fatal_error_window(&mut application.session)
 }

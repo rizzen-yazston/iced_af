@@ -175,9 +175,12 @@ impl SaveDataTrait for State {
     }
 }
 
+/// Returned result is tuple `(Task, bool)`, where `bool` of `True` indicates
+/// display() succeeded in creating the main window, `False` indicates failure
+/// with an information window displayed instead.
 pub fn display(
     application: &mut application::State,
-) -> Result<Task<application::Message>, ApplicationError> {
+) -> Result<(Task<application::Message>, bool), ApplicationError> {
     let state: Box<dyn AnyWindowTrait> = Box::new(State::try_new(&application.localisation)?);
     if !application.string_cache.exists(&StringGroup::Main) {
         application.string_cache.insert(
@@ -195,7 +198,7 @@ pub fn display(
             ),
         );
     }
-    Ok(application.manager.try_spawn_new_thread(&mut application.session, state)?)
+    Ok((application.manager.try_create_thread(&mut application.session, state)?, true))
 }
 
 pub fn try_update(

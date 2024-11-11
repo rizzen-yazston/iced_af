@@ -1,14 +1,14 @@
 // This file is part of `iced_af` crate. For the terms of use, please see the file
 // called LICENSE-BSD-3-Clause at the top level of the `iced_af` crate.
 
-//! The state manager of the mini application framework.
+//! The state manager of the multi-window application.
 //!
-//! Add new window states under `src/windows/` directory.
+//! Add new window states under the `src/windows/` directory.
 
 use crate::{
     application::{
-        constants::WINDOW_DEFAULT_DATA, session::WindowData, Message,
-        Session, WindowType,
+        constants::WINDOW_DEFAULT_DATA, session::WindowData, ApplicationError,
+        Message, Session, WindowType
     },
     core::{
         error::CoreError,
@@ -22,43 +22,37 @@ use std::{collections::BTreeMap, usize};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace, warn};
 
+/// The manager is responsible for creating new windows, and removing windows.
+/// Keeping the window state and window Id in sync, and the windows are in a
+/// safe hierarchy, allowing lower windows to be disabled, or all other windows
+/// disabled except the active window (useful when changes may affects all
+/// opened files, databases, etc). Also included is a cache for re-usable
+/// states.
 pub struct Manager {
     // All active window states
     states: BTreeMap<window::Id, Entry>,
 
     // Window IDs placed in main window threads
-    threads: VecOption<Vec<window::Id>>,//Vec<Option<Vec<window::Id>>>,
+    threads: VecOption<Vec<window::Id>>,
 
     // Reusable states cache
     reusable: BTreeMap<WindowType, Box<dyn AnyWindowTrait>>,
-
-    // List of possible main window types. Similar concept of LibreOffice applications.
-    main_types: Vec<WindowType>,
-
-    // Default main window
-    default_main: WindowType, // Empty reusable state, mainly just contains a menu bar.
-
-    // New state to be inserted
-    new_entries: VecOption<Entry>,
 }
 
 impl Manager {
     /// Initialise the state manager.
-    ///
-    /// * `main_types`: are the valid window types for main windows, including the placeholder
-    /// window type.
-    pub fn try_new(
-        main_types: Vec<WindowType>,
-    ) -> Result<Manager, CoreError> {
+    /// 
+    /// The reusable Default window state is added to the cache.
+    /// 
+    /// The return `Result` is used instead of `Manager` instance, just in case
+    /// the default window creation produces an error.
+    pub fn try_new() -> Result<Manager, ApplicationError> {
         let mut reusable = BTreeMap::<WindowType, Box<dyn AnyWindowTrait>>::new();
         reusable.insert(WindowType::Default, Box::new(default::State::new()));
         Ok(Manager {
             states: BTreeMap::<window::Id, Entry>::new(),
             threads: VecOption::<Vec<window::Id>>::new(),
             reusable,
-            main_types,
-            default_main: WindowType::Default,
-            new_entries: VecOption::<Entry>::new(),
         })
     }
 
@@ -66,12 +60,14 @@ impl Manager {
     // ----- Retrieve/information methods
     //
 
-    /// Retrieve the state instance for the specified window Id.
+    /// Retrieve a reference to the state instance for the specified window
+    /// Id.
     pub fn state(&self, id: &window::Id) -> Option<&Box<dyn AnyWindowTrait>> {
         self.states.get(id).map(|x| &x.state)
     }
 
-    /// Retrieve the mutable state instance for the specified window Id.
+    /// Retrieve a mutable reference to the mutable state instance for the
+    /// specified window Id.
     pub fn state_mut(&mut self, id: &window::Id) -> Option<&mut Box<dyn AnyWindowTrait>> {
         self.states.get_mut(id).map(|x| &mut x.state)
     }
@@ -81,7 +77,7 @@ impl Manager {
         self.threads.count
     }
 
-    /// Return a list of root window Ids of the threads.
+    /// Return a list of the threads' root window Id.
     pub fn thread_list(&self) -> Vec<window::Id> {
         let mut _vec = Vec::<window::Id>::new();
         for option in self.threads.vec.iter() {
@@ -102,19 +98,17 @@ impl Manager {
         self.states.get(id).map(|x| x.parent)?
     }
 
-    /// Indicates if a window is currently being spawned.
-    pub fn is_spawning(&self) -> usize {
-        self.new_entries.count
-    }
-
     //
     // ----- Spawning methods
     //
 
-    // If parent is `None`, then all window threads are disabled. Normally used by global windows.
-    fn disable(&mut self, parent: &Option<window::Id>) -> Vec<window::Id> {
+    /// Disable the parent window of a thread, or all threads by passing
+    /// `None`. Disabling all threads is usually done for window that
+    /// contains settings, that can affect all threads.
+    fn disable_windows(&mut self, parent: &Option<window::Id>) -> Vec<window::Id> {
         match parent {
             None => {
+                trace!("disable(): all threads");
                 let mut disabled = Vec::<window::Id>::with_capacity(self.threads.vec.len());
                 for thread in &self.threads.vec {
                     if thread.is_some() {
@@ -128,6 +122,7 @@ impl Manager {
                 disabled
             }
             Some(parent) => {
+                trace!("disable(): for parent {:?}", parent);
                 let entry = self.states.get_mut(&parent).unwrap();
                 entry.enabled = false;
                 vec![*parent]
@@ -135,48 +130,44 @@ impl Manager {
         }
     }
 
-    /// Spawn a new main window thread, using the provided `iced` window settings, and the
-    /// window state.
-    pub fn try_spawn_new_thread(
+    /// Try to create a new window thread, using the provided `iced` window
+    /// settings located in the application's session data, and the window
+    /// state.
+    pub fn try_create_thread(
         &mut self,
         session: &mut Session,
         state: Box<dyn AnyWindowTrait>,
     ) -> Result<Task<Message>, CoreError> {
         debug!(
-            "Spawning main thread with window type ‘{:?}’",
+            "try_create_thread(): for window type ‘{:?}’",
             state.window_type()
         );
-        let mut _found = false;
-        for window_type in &self.main_types {
-            if window_type == &state.window_type() {
-                _found = true;
-                break;
-            }
-        }
-        if !_found {
-            return Err(CoreError::InvalidWindowTypeMain(state.window_type()));
-        }
 
-        // Set `iced` window settings, and spawn
-        let id = spawn(session, state.window_type())?;
+        // Set `iced` window settings, and spawn.
+        let id = try_create(session, state.window_type())?;
 
-        // Prepare to insert state once window is opened
-        let len = self.new_entries.count;
-        self.new_entries.push(Entry {state, enabled: true, parent: None, disabled: None});
-        trace!("spawn thread: len: {:?}", self.new_entries.count);
-        Ok(id.1.map(move |id| Message::WindowOpened(id, len)))
+        // Insert state and open the window.
+        let entry = Entry {state, enabled: true, parent: None, disabled: None};
+        let _ = self.threads.push(vec![id.0]);
+        self.states.insert(id.0, entry);
+        trace!("try_create_thread(): inserted state for {:?}, next open window", id.0);
+        Ok(id.1.map(move |id| Message::WindowOpened(id)))
     }
 
-    /// Spawn a window on an existing main window thread, using the provided `iced` window
-    /// settings, the window state, and parent window Id (used to locate the main thread to
-    /// attached window to).
-    pub fn try_spawn(
+    /// Try to create a window on an existing main window thread, using the
+    /// provided `iced` window settings located in the application's session
+    /// data, the window state, and parent window Id (used to locate the main
+    /// thread to attached window to).
+    pub fn try_create_window(
         &mut self,
         session: &mut Session,
         state: Box<dyn AnyWindowTrait>,
         parent: window::Id, // Typically be the calling window
     ) -> Result<Task<Message>, CoreError> {
-        debug!("Spawning window type ‘{:?}’", state.window_type());
+        debug!(
+            "try_create_window(): for window type ‘{:?}’",
+            state.window_type()
+        );
         if !self.states.contains_key(&parent) {
             return Err(CoreError::WindowIdNotFound(
                 parent,
@@ -185,19 +176,28 @@ impl Manager {
         }
         let parent = Some(parent);
         let disabled = if state.is_global_disable() {
-            self.disable(&None)
+            self.disable_windows(&None)
         } else {
-            self.disable(&parent)
+            self.disable_windows(&parent)
         };
 
         // Set `iced` window settings, and spawn
-        let id = spawn(session, state.window_type())?;
+        let id = try_create(session, state.window_type())?;
 
-        // Prepare to insert state once window is opened
-        let len = self.new_entries.count;
-        self.new_entries.push(Entry {state, enabled: true, parent, disabled: Some(disabled)});
-        trace!("spawn window: len: {:?}", self.new_entries.count);
-        Ok(id.1.map(move |id| Message::WindowOpened(id, len)))
+        // Insert state and open the window.
+        let entry = Entry {state, enabled: true, parent, disabled: Some(disabled)};
+        for thread in &mut self.threads.vec {
+            if thread.is_some() {
+                let actual = thread.as_mut().unwrap();
+                if actual.last() == entry.parent.as_ref() {
+                    actual.push(id.0);
+                    break;
+                }
+            }
+        }
+        self.states.insert(id.0, entry);
+        trace!("try_create_window(): inserted state for {:?}, next open window", id.0);
+        Ok(id.1.map(move |id| Message::WindowOpened(id)))
     }
 
     /// Obtain reusable state if available, for the specified window type.
@@ -205,17 +205,20 @@ impl Manager {
         self.reusable.remove(&window_type)
     }
 
-    /// Spawn the fatal error window.
+    /// Create the fatal error window.
     ///
     /// Every window is disable to prevent any additional fatal errors from occurring, before
     /// spawning the `FatalError` window.
-    pub fn spawn_fatal_error(
+    pub fn create_fatal_error_window(
         &mut self,
         session: &mut Session,
     ) -> Task<Message> {
         let state = Box::new(fatal_error::State::new());
-        debug!("Spawning window type ‘{:?}’", state.window_type());
-        let id = match spawn(session, state.window_type()) {
+        debug!(
+            "create_fatal_window(): for window type ‘{:?}’",
+            state.window_type()
+        );
+        let id = match try_create(session, state.window_type()) {
             Ok(value) => value,
             Err(_) => {
                 let settings = window::Settings {
@@ -228,35 +231,22 @@ impl Manager {
                 window::open(settings)
             }
         };
-        let _ = self.disable(&None);
+        let _ = self.disable_windows(&None);
 
-        // Prepare to insert state once window is opened
-        let len = self.new_entries.count;
-        self.new_entries.push(Entry {state, enabled: true, parent: None, disabled: None});
-        Task::done(Message::WindowOpened(id.0, len))
-    }
-
-    pub fn window_opened(&mut self, id: window::Id, index: usize) {
-        trace!("open_window: len: {:?}, index: {:?}", self.new_entries.count, index);
-        let entry = self.new_entries.take(index).unwrap();
-        if entry.parent.is_some() {
-            for thread in &mut self.threads.vec {
-                if thread.is_some() {
-                    let actual = thread.as_mut().unwrap();
-                    if actual.last() == entry.parent.as_ref() {
-                        actual.push(id);
-                        break;
-                    }
+        // Insert state and open the window.
+        let entry = Entry {state, enabled: true, parent: None, disabled: None};
+        for thread in &mut self.threads.vec {
+            if thread.is_some() {
+                let actual = thread.as_mut().unwrap();
+                if actual.last() == entry.parent.as_ref() {
+                    actual.push(id.0);
+                    break;
                 }
             }
-        } else {
-            let _ = self.threads.push(vec![id]);
         }
-        self.states.insert(id, entry);
-    }
-
-    pub fn fatal_error_opened(&mut self, id: window::Id) {
-        self.states.insert(id, self.new_entries.pop().unwrap());
+        self.states.insert(id.0, entry);
+        trace!("create_fatal_error_window(): inserted state for {:?}, next open window", id.0);
+        id.1.map(move |id| Message::WindowOpened(id))
     }
 
     //
@@ -264,10 +254,11 @@ impl Manager {
     //
 
     /// Close a single window.
-    pub fn close(
+    pub fn close_window(
         &mut self,
         id: window::Id,
     ) -> Result<Task<Message>, CoreError> {
+        trace!("close_window(): id {:?}", id);
         let task = window::close(id);
         Ok(task.chain(Task::done(Message::WindowClosed(id))))
     }
@@ -279,6 +270,7 @@ impl Manager {
         &mut self,
         ids: Vec<window::Id>,
     ) -> Result<Task<Message>, CoreError> {
+        debug!("close_multiple()");
         let mut tasks = Task::none();
         for id in ids {
             tasks = tasks.chain(window::close(id));
@@ -294,7 +286,7 @@ impl Manager {
         &mut self,
         id: window::Id,
     ) -> Result<Task<Message>, CoreError> {
-        debug!("Closing main thread {:?}", id);
+        debug!("close_thread(): contains {:?}", id);
         if self.states.get(&id).is_none() {
             return Err(CoreError::WindowIdNotFound(id, "Manager.states".to_string()));
         };
@@ -320,7 +312,7 @@ impl Manager {
         for state_id in thread {
             tasks = tasks.chain(window::close(state_id));
         }
-        tasks = tasks.chain(Task::done(Message::ThreadClosed(id)));
+        tasks = tasks.chain(Task::done(Message::ThreadClosed(index)));
         trace!("{:?}", self.threads.vec);
         Ok(tasks)
     }
@@ -366,67 +358,20 @@ impl Manager {
         // Remove the state
         let entry = self.states.remove(&id).unwrap();
         if entry.state.is_reusable() {
+            debug!("window_closed(): cached reusable state for {:?}", id);
             self.reusable.insert(entry.state.window_type(), entry.state);
         }
+        trace!("window_closed(): removed state for {:?}", id);
         Ok(())
     }
     
-    /// Re-enable windows that was disabled by each window of the thread, and remove all
-    /// states of the thread.
+    /// Remove the thread from threads, now that all windows has been closed.
     pub fn thread_closed(
         &mut self,
-        id: window::Id,
+        index: usize,
     ) -> Result<(), CoreError> {
-        debug!("Window closed {:?} of thread, now removing states of thread.", id);
-        if self.states.get(&id).is_none() {
-            return Err(CoreError::WindowIdNotFound(id, "Manager.states".to_string()));
-        };
-
-        // Find the thread to close.
-        let index = self.threads.vec.iter().position(|thread| {
-            if thread.is_some() {
-                let actual = thread.as_ref().unwrap();
-                for id_ in actual {
-                    if id_ == &id {
-                        return true;
-                    }
-                }
-            }
-            false
-        })
-        .unwrap();
-
-        // Remove the thread and reverse.
-        let mut thread = self.threads.take(index).unwrap();
-        thread.reverse();
-
-        for id in thread {
-            // Re-enable disabled windows by this window.
-            let mut _disabled: Option<Vec<window::Id>> = None;
-            {
-                let Some(entry) = self.states.get_mut(&id) else {
-                    return Err(CoreError::WindowIdNotFound(
-                        id,
-                        "Manager.states".to_string(),
-                    ));
-                };
-                _disabled = entry.disabled.take();
-            }
-            if _disabled.is_some() {
-                let disabled = _disabled.unwrap();
-                trace!("Disabled windows: {:?}", disabled);
-                for disabled_id in disabled {
-                    let disabled_state = self.states.get_mut(&disabled_id).unwrap();
-                    disabled_state.enabled = true;
-                }
-            }
-
-            // Remove the state
-            let entry = self.states.remove(&id).unwrap();
-            if entry.state.is_reusable() {
-                self.reusable.insert(entry.state.window_type(), entry.state);
-            }
-        }
+        trace!("thread_closed(): removed thread {:?}", index);
+        let _ = self.threads.take(index); 
         Ok(())
     }
 }
@@ -435,8 +380,9 @@ impl Manager {
 // ----- Private functions
 //
 
-// Simply creates the required `iced` windows Settings, and spawn the window.
-fn spawn(
+/// Try to create the `iced` window for the specified window type, using the
+/// `iced` windows Settings located in the application's session data.
+fn try_create(
     session: &mut Session,
     window_type: WindowType,
 ) -> Result<(window::Id, Task<window::Id>), CoreError> {
@@ -446,7 +392,7 @@ fn spawn(
             "WINDOW_DEFAULT_DATA".to_string(),
         ));
     };
-    trace!("WindowType: {:?}; defaults: {:?}", window_type, defaults);
+    trace!("try_create(): WindowType: {:?}; defaults: {:?}", window_type, defaults);
     if !session.windows.contains_key(&window_type) {
         session.windows.insert(
             window_type.clone(),
@@ -476,6 +422,7 @@ fn spawn(
     Ok(window::open(settings))
 }
 
+#[derive(Debug)]
 struct VecOption<T> {
     count: usize,
     vec: Vec<Option<T>>
@@ -491,7 +438,7 @@ impl<T> VecOption<T> {
 
     fn push(&mut self, element: T) -> usize {
         let mut len = self.vec.len();
-        trace!("push start: len: {}, count: {}", len, self.count);
+        trace!("push(): start: len: {}, count: {}", len, self.count);
         if self.count < len {
             if let Some(index) = self.vec.iter().position(|x| x.is_none()) {
                 self.vec[index] = Some(element);
@@ -501,12 +448,12 @@ impl<T> VecOption<T> {
             self.vec.push(Some(element));
         }
         self.count += 1;
-        trace!("push end: len: {}, count: {}", len, self.count);
+        trace!("push(): end: len: {}, count: {}, index: {}", self.vec.len(), self.count, len);
         len
     }
 
     fn pop(&mut self) -> Option<T> {
-        trace!("pop start: len: {}, count: {}", self.vec.len(), self.count);
+        trace!("pop(): start: len: {}, count: {}", self.vec.len(), self.count);
         if self.count == 0 {
             return None;
         }
@@ -517,20 +464,20 @@ impl<T> VecOption<T> {
                 self.vec.clear();
             }
         }
-        trace!("pop end: len: {}, count: {}", self.vec.len(), self.count);
+        trace!("pop(): end: len: {}, count: {}", self.vec.len(), self.count);
         element
     }
 
     fn replace(&mut self, index: usize, element: Option<T>) -> Option<T> {
-        trace!("replace start: len: {}, count: {}, index: {}", self.vec.len(), self.count, index);
+        trace!("replace(): start: len: {}, count: {}, index: {}", self.vec.len(), self.count, index);
         let old = self.vec[index].take();
         self.vec[index] = element;
-        trace!("replace end: len: {}, count: {}", self.vec.len(), self.count);
+        trace!("replace(): end: len: {}, count: {}", self.vec.len(), self.count);
         old
     }
 
     fn take(&mut self, index: usize) -> Option<T> {
-        trace!("take start: len: {}, count: {}, index: {}", self.vec.len(), self.count, index);
+        trace!("take(): start: len: {}, count: {}, index: {}", self.vec.len(), self.count, index);
         if self.count == 0 {
             return None;
         }
@@ -541,11 +488,12 @@ impl<T> VecOption<T> {
                 self.vec.clear();
             }
         }
-        trace!("take end: len: {}, count: {}", self.vec.len(), self.count);
+        trace!("take(): end: len: {}, count: {}", self.vec.len(), self.count);
         element
     }
 }
 
+/// Just a simple struct with named fields.
 struct Entry {
     state: Box<dyn AnyWindowTrait>,    // The window state
     enabled: bool,                     // This window enabled

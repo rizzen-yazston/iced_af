@@ -175,7 +175,7 @@ pub fn display(
     let state = State::try_new(&application.localisation, name)?;
     Ok(application
         .manager
-        .try_spawn(&mut application.session, Box::new(state), parent)?)
+        .try_create_window(&mut application.session, Box::new(state), parent)?)
 }
 
 pub fn try_update(
@@ -186,7 +186,7 @@ pub fn try_update(
     match message {
         application::Message::UnsavedData(id, ref inner_message) => {
             match inner_message {
-                Message::Cancel => tasks = application.manager.close(id)?,
+                Message::Cancel => tasks = application.manager.close_window(id)?,
                 Message::Discard => tasks = application.close_thread(id)?,
                 Message::Save => {
                     let Some(parent) = application.manager.parent(&id) else {

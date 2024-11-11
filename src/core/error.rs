@@ -97,7 +97,23 @@ impl LocalisationTrait for CoreError {
                     values: Some(values),
                 }
             }
-
+            CoreError::LanguageTagRegistry(ref error) => {
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("LanguageTagRegistry".to_string()),
+                );
+                values.insert(
+                    "error".to_string(),
+                    PlaceholderValue::LocalisationData(error.localisation_data()),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some(values),
+                }
+            }
             CoreError::Localiser(ref error) => {
                 let mut values = HashMap::<String, PlaceholderValue>::new();
                 values.insert("type".to_string(), type_string);
@@ -177,23 +193,6 @@ impl LocalisationTrait for CoreError {
                 values.insert(
                     "error".to_string(),
                     PlaceholderValue::String(error.to_string()),
-                );
-                LocalisationData {
-                    component: "i18n_localiser".to_string(),
-                    identifier: "error_format_enum_embedded".to_string(),
-                    values: Some(values),
-                }
-            }
-            CoreError::LanguageTagRegistry(ref error) => {
-                let mut values = HashMap::<String, PlaceholderValue>::new();
-                values.insert("type".to_string(), type_string);
-                values.insert(
-                    "variant".to_string(),
-                    PlaceholderValue::String("LanguageTagRegistry".to_string()),
-                );
-                values.insert(
-                    "error".to_string(),
-                    PlaceholderValue::LocalisationData(error.localisation_data()),
                 );
                 LocalisationData {
                     component: "i18n_localiser".to_string(),

@@ -21,7 +21,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 //
 
 // Project information:
-pub const VENDOR: &str = "rizzen"; // Always lower case ASCII letter [a-z].
+pub const VENDOR: &str = "rizzen"; // Always lower case ASCII letters [a-z].
 pub const APPLICATION_NAME: &str = "Iced Application Framework";
 pub const APPLICATION_NAME_SHORT: &str = "Iced AF";
 pub const APPLICATION_ABBREVIATION: &str = "iced_af";
@@ -34,11 +34,12 @@ pub const DEFAULT_LOG_LEVEL_FILTER: LevelFilter = LevelFilter::Error; // This is
 pub const TAB_HEADER_SIZE: u16 = 32;
 pub const TAB_PADDING: u16 = 16;
 
-// As pfh does not support enums as keys due to rust compiler limitations, thus `&str` are
-// used instead. Ensure the `&str` matches the `WindowType::as_str()`.
-//
-// Every `WindowType` variant, there must an entry present.
-// Add additional windows to Main windows and Application windows below.
+/// As pfh does not support enums as keys due to rust compiler limitations,
+/// thus `&str` are used instead. Ensure the `&str` matches the
+/// `WindowType::as_str()`.
+///
+/// Every `WindowType` variant, there must an entry present.
+/// Add additional windows to Main windows and Application windows below.
 pub static WINDOW_DEFAULT_DATA: phf::Map<&str, WindowDefaultsData> = phf_map! {
     // Core windows
     "About" => WindowDefaultsData {
@@ -112,6 +113,7 @@ pub static WINDOW_DEFAULT_DATA: phf::Map<&str, WindowDefaultsData> = phf_map! {
 
 };
 
+/// Simple struct for holding window settings.
 #[derive(Debug)]
 pub struct WindowDefaultsData {
     pub size: (f32, f32),

@@ -8,17 +8,16 @@ use core::fmt::{Display, Formatter, Result};
 use i18n::utility::{
     LocalisationData, LocalisationErrorTrait, LocalisationTrait, PlaceholderValue,
 };
+use rusqlite::Error as Sqlite3Error;
 use std::collections::HashMap;
-use std::{error::Error, fmt::Debug};
+use std::{error::Error, fmt::Debug, io::Error as IoError};
 
-/*
 #[cfg(not(feature = "sync"))]
 use std::rc::Rc as RefCount;
 
 #[cfg(feature = "sync")]
 #[cfg(target_has_atomic = "ptr")]
 use std::sync::Arc as RefCount;
-*/
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -26,6 +25,10 @@ pub enum ApplicationError {
     Core(CoreError),
     DatabaseAlreadyOpen,
     InvalidSchema(String),
+
+    // Copied from CoreError as these are common error in application.
+    Sqlite3(RefCount<Sqlite3Error>),
+    Io(String), // Can't clone io::Error, as it is an OS error, thus converted to final String (can't be translated).
 }
 
 impl LocalisationErrorTrait for ApplicationError {}
@@ -100,6 +103,42 @@ impl LocalisationTrait for ApplicationError {
                     values: Some(values),
                 }
             }
+            ApplicationError::Sqlite3(ref error) => {
+                // Currently no localisation is available for this error type: Sqlite3Error.
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("Sqlite3".to_string()),
+                );
+                values.insert(
+                    "error".to_string(),
+                    PlaceholderValue::String(error.to_string()),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some(values),
+                }
+            }
+            ApplicationError::Io(ref error) => {
+                // Currently no localisation is available for this error type: IoError (always a String).
+                let mut values = HashMap::<String, PlaceholderValue>::new();
+                values.insert("type".to_string(), type_string);
+                values.insert(
+                    "variant".to_string(),
+                    PlaceholderValue::String("Io".to_string()),
+                );
+                values.insert(
+                    "error".to_string(),
+                    PlaceholderValue::String(error.to_string()),
+                );
+                LocalisationData {
+                    component: "i18n_localiser".to_string(),
+                    identifier: "error_format_enum_embedded".to_string(),
+                    values: Some(values),
+                }
+            }
         }
     }
 }
@@ -116,6 +155,8 @@ impl Display for ApplicationError {
                 "The Sqlite3 file schema is invalid for the database ‘{}’.",
                 name
             ),
+            ApplicationError::Sqlite3(ref error) => Display::fmt(&error, formatter),
+            ApplicationError::Io(ref error) => Display::fmt(&error, formatter),
         }
     }
 }
@@ -128,3 +169,16 @@ impl From<CoreError> for ApplicationError {
         ApplicationError::Core(error)
     }
 }
+
+impl From<IoError> for ApplicationError {
+    fn from(error: IoError) -> ApplicationError {
+        ApplicationError::Io(format!("{}", error.to_string()))
+    }
+}
+
+impl From<Sqlite3Error> for ApplicationError {
+    fn from(error: Sqlite3Error) -> ApplicationError {
+        ApplicationError::Sqlite3(RefCount::new(error))
+    }
+}
+

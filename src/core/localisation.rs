@@ -36,24 +36,29 @@ use std::sync::Arc as RefCount;
 // ----- The localisation for the UI
 //
 
+/// The localised string cache for constant strings of window types.
+/// 
+/// Note: Instances specific localisation, such as messages, are stored instead
+/// in the window's state.
 pub struct StringCache {
-    // Contains the shared localised strings of the window types
-    // Instances specific localisation, such as messages, are stored instead in the window's state
     cache: HashMap<StringGroup, Box<dyn AnyLocalisedTrait>>,
 }
 
 impl StringCache {
-    pub fn try_new() -> Result<StringCache, CoreError> {
-        Ok(StringCache {
+    /// Creates an empty cache.
+    pub fn new() -> StringCache {
+        StringCache {
             cache: HashMap::<StringGroup, Box<dyn AnyLocalisedTrait>>::new(),
-        })
+        }
     }
 
+    /// Attempts to update the localised string to the selected language
+    /// contained in `Localisation`.
     pub fn try_update(&mut self, localisation: &Localisation) -> Result<(), CoreError> {
         for (string_group, strings) in self.cache.iter_mut() {
             strings.try_update(localisation)?;
             trace!(
-                "Updated strings for string group ‘{:?}’: {:?}",
+                "try_update(): Updated strings for string group ‘{:?}’: {:?}",
                 string_group,
                 strings
             );
@@ -61,10 +66,12 @@ impl StringCache {
         Ok(())
     }
 
+    /// Returns true if a `StringGroup` exists in the cache.
     pub fn exists(&self, string_group: &StringGroup) -> bool {
         self.cache.contains_key(string_group)
     }
 
+    /// Insert localised strings into the cache.
     pub fn insert(
         &mut self,
         string_group: StringGroup,
@@ -73,11 +80,16 @@ impl StringCache {
         let _ = self.cache.insert(string_group, localised_strings);
     }
 
+    /// Get a reference to the localised strings for the specified `StringGroup`.
     pub fn get(&self, string_group: &StringGroup) -> Option<&Box<dyn AnyLocalisedTrait>> {
         self.cache.get(string_group)
     }
 }
 
+/// `Localisation` is a wrapper for the `Localiser` of the
+/// `i18n-rizzen-yazston` crate, with added script layout data for the current
+/// language, and cache of available languages in the application's
+/// localisation database. 
 pub struct Localisation {
     // The i18n localiser
     localiser: Localiser,
@@ -90,6 +102,7 @@ pub struct Localisation {
 }
 
 impl Localisation {
+    /// Initialise the `Localiser`, collect available languages layout data
     pub fn try_new<T: AsRef<str>>(
         environment: &Environment,
         language: T,
@@ -156,22 +169,27 @@ impl Localisation {
 
     // ----- Exposed Localiser methods
 
+    /// Obtain reference to `Localiser` language tag registry.
     pub fn language_tag_registry(&self) -> &RefCount<LanguageTagRegistry> {
         self.localiser.language_tag_registry()
     }
 
+    /// Obtain reference to `Localiser` ICU data provider.
     pub fn icu_data_provider(&self) -> &RefCount<IcuDataProvider> {
         self.localiser.icu_data_provider()
     }
 
+    /// Obtain reference to `Localiser` command registry.
     pub fn command_registry(&self) -> &RefCount<CommandRegistry> {
         self.localiser.command_registry()
     }
 
+    /// Obtain reference to `Localiser` default language.
     pub fn default_language(&self) -> RefCount<LanguageTag> {
         self.localiser.default_language()
     }
 
+    /// Obtain reference to `Localiser` repository details.
     pub fn repository_details(&self) -> Result<RefCount<RepositoryDetails>, CoreError> {
         Ok(self
             .localiser
@@ -179,6 +197,7 @@ impl Localisation {
             .repository_details()?)
     }
 
+    /// Get a literal string using `Localiser` defaults.
     pub fn literal_with_defaults(
         &self,
         component: &str,
@@ -189,6 +208,7 @@ impl Localisation {
             .literal_with_defaults(component, identifier)?)
     }
 
+    /// Format a string using `Localiser` defaults.
     pub fn format_with_defaults(
         &self,
         component: &str,
@@ -200,6 +220,7 @@ impl Localisation {
             .format_with_defaults(component, identifier, values)?)
     }
 
+    /// Format an error into a string using `Localiser` defaults.
     pub fn format_error_with_defaults(
         &self,
         error: &impl LocalisationErrorTrait,
@@ -207,6 +228,7 @@ impl Localisation {
         Ok(self.localiser.format_error_with_defaults(error)?)
     }
 
+    /// Format `LocalisationData` instance into a string using `Localiser` defaults.
     pub fn format_localisation_data_with_defaults(
         &self,
         data: &LocalisationData,
@@ -218,10 +240,14 @@ impl Localisation {
 
     // ----- Localisation methods
 
+    /// Get a reference to available languages. Also includes the layout data
+    /// and ratio of translated string to development language.
     pub fn available_languages(&self) -> &HashMap<RefCount<LanguageTag>, (LayoutData, f32)> {
         &self.available_languages
     }
 
+    /// Change the default language of the `Localiser`, and change layout data
+    /// to the new language.
     pub fn change_default_language(
         &mut self,
         tag: RefCount<LanguageTag>,
@@ -237,6 +263,7 @@ impl Localisation {
         Ok(false)
     }
 
+    /// Get reference to the language layout data.
     pub fn layout_data(&self) -> &LayoutData {
         &self.layout_data
     }
@@ -284,6 +311,7 @@ pub struct LayoutData {
 }
 
 impl LayoutData {
+    /// Create a `LayoutData` for the specified script direction.
     pub fn new(script_direction: &ScriptDirection) -> Self {
         match script_direction {
             // Most common is top to bottom line flow.

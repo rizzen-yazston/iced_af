@@ -34,7 +34,7 @@ iced_aw = { version = "0.11.0", features = [ "menu", "quad", "sidebar", ] }
 #iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", branch = "main", features = [ "menu", "quad", "sidebar" ] }
 #iced_aw = { path = "../contributor/iced_aw", features = [ "menu", "quad", "sidebar" ] }
 iced_fonts = { version = "0.1.0", feature = [ "required" ] } # Change to include more font options.
-iced = { version = "0.13.0", features = [ "multi-window", "advanced", ] }
+iced = { version = "0.13.1", features = [ "multi-window", "advanced", ] }
 #iced = { git = "https://github.com/iced-rs/iced.git", branch = "master", features = [ "multi-window", "advanced" ] }
 #iced = { path = "../contributor/iced", features = [ "multi-window", "advanced" ] }
 dirs = "5.0.1"

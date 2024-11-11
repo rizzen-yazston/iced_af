@@ -23,6 +23,7 @@ use log::{debug, error, info, trace, warn};
 // Uncomment to test FatalError window
 //use crate::window::fatal_error;
 
+/// `Message` enum for default window, includes the `Message` enum for the menubar.
 #[derive(Debug, Clone)]
 pub enum Message {
     MenuBar(menu_bar::Message),
@@ -32,6 +33,7 @@ pub enum Message {
     //FatalError,
 }
 
+/// An empty state, as window just contains a menu bar.
 pub struct State {}
 
 impl State {
@@ -135,7 +137,7 @@ pub fn display(
         None => Box::new(State::new()),
         Some(value) => value,
     };
-    Ok(application.manager.try_spawn_new_thread(&mut application.session, state)?)
+    Ok(application.manager.try_create_thread(&mut application.session, state)?)
 }
 
 pub fn try_update(
